@@ -187,7 +187,7 @@ Only an essential subset of the x86-64 instruction set with several pseudo-instr
 - `FLOORD`: `floord xmm, xmm`
 - `TRUNCD`: `truncd xmm, xmm`
 
-#### Packed SIMD (AVX)
+#### AVX SIMD
 
 These instructions require AVX. Memory operands for `vmovaps` must be aligned
 to 16 bytes for XMM or 32 bytes for YMM; `vmovups` has no alignment requirement.
@@ -222,18 +222,9 @@ to 16 bytes for XMM or 32 bytes for YMM; `vmovups` has no alignment requirement.
 - `VTRUNCPS`: `vtruncps xmm, xmm` / `vtruncps ymm, ymm`
 - `VCMPPS`: `vcmpps xmm, xmm, xmm, predicate` / `vcmpps ymm, ymm, ymm, predicate`
 - `VCMPPS` helpers: `veqps/vltps/vleps/vunordps/vneps/vnltps/vnleps/vordps/vgtps/vgeps`
-
 - `VBLENDPS`: `vblendps xmm, xmm, xmm, mask` / `vblendps ymm, ymm, ymm, mask`
 - `VPTEST`: `vptest xmm, xmm` / `vptest ymm, ymm`  // set ZF and CF from packed bitwise tests
 - `VZEROUPPER`: `vzeroupper`  // clear bits 128–255 of all YMM registers
-
-`VDPPS` input and output masks are lists of four booleans, ordered from the lowest
-element to the highest; YMM applies the same masks independently to both 128-bit lanes.
-`VBLENDPS` takes `dst, src1, src2, mask`. Its mask contains four integers for XMM or
-eight for YMM, ordered from low to high: 1 selects `src1` and 2 selects `src2`.
-
-`VCMPPS` predicate must be between 0 and 7. Its named helpers accept three
-registers of the same width.
 
 #### Comparisons and branches
 
