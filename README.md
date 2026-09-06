@@ -98,7 +98,7 @@ assert ccall(e.symbol('add_two'), 20, 22) == 42
                    | `[r64 +/- simm32]`
                    | `[rip + rel32]`
 `rel32`: label 
-`cond`: EQ | NE | LT | GT | LE | GE | LTU | GTU | GEU | LEU | P
+`cond`: EQ | NE | LT | GT | LE | GE | LTU | GTU | GEU | LEU | P | NP | O | NO | S | NS
 ```
 
 ### Implemented Instructions
@@ -223,6 +223,15 @@ to 16 bytes for XMM or 32 bytes for YMM; `vmovups` has no alignment requirement.
 - `VCMPPS`: `vcmpps xmm, xmm, xmm, predicate` / `vcmpps ymm, ymm, ymm, predicate`
 - `VCMPPS` helpers: `veqps/vltps/vleps/vunordps/vneps/vnltps/vnleps/vordps/vgtps/vgeps`
 
+- `VBLENDPS`: `vblendps xmm, xmm, xmm, mask` / `vblendps ymm, ymm, ymm, mask`
+- `VPTEST`: `vptest xmm, xmm` / `vptest ymm, ymm`  // set ZF and CF from packed bitwise tests
+- `VZEROUPPER`: `vzeroupper`  // clear bits 128–255 of all YMM registers
+
+`VDPPS` input and output masks are lists of four booleans, ordered from the lowest
+element to the highest; YMM applies the same masks independently to both 128-bit lanes.
+`VBLENDPS` takes `dst, src1, src2, mask`. Its mask contains four integers for XMM or
+eight for YMM, ordered from low to high: 1 selects `src1` and 2 selects `src2`.
+
 `VCMPPS` predicate must be between 0 and 7. Its named helpers accept three
 registers of the same width.
 
@@ -234,6 +243,11 @@ Floating-point comparisons select AVX when available and otherwise use SSE.
 - `UCOMISS`: `ucomiss xmm, xmm`
 - `UCOMISD`: `ucomisd xmm, xmm`
 - `JCC`:    `jcc cond, rel32`
+- `Jcc` helpers (each takes `rel32`):
+  - Equality: `je/jeq/jz`, `jne/jnz`
+  - Unsigned: `ja/jnbe/jgtu`, `jae/jnb/jnc/jgeu`, `jb/jnae/jc/jltu`, `jbe/jna/jleu`
+  - Signed: `jg/jnle/jgt`, `jge/jnl`, `jl/jnge/jlt`, `jle/jng`
+  - Flags: `jo/jno` (overflow), `js/jns` (sign), `jp/jpe/jnp/jpo` (parity)
 - `SETCC`:  `setcc cond, r8`
 - `CMOVcc`: `cmoveq/cmovne/cmovgt/cmovge/cmovlt/cmovle r64, r64`
 - `CMOVcc`: `cmovgtu/cmovgeu/cmovltu/cmovleu/cmovp r64, r64`

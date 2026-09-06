@@ -392,9 +392,9 @@ def simd_dot_product() -> None:
     e.label('f')
     e.vmovups(ymm8, m256_ptr(rdi))
     e.vmovups(ymm9, m256_ptr(rsi))
-    e.vdpps(ymm10, ymm8, ymm9, 0b1011, 0b0101)
+    e.vdpps(ymm10, ymm8, ymm9, [True, True, False, True], [True, False, True, False])
     e.vmovups(m256_ptr(rdx), ymm10)
-    e.vdpps(xmm11, xmm8, xmm9, 0b0110, 0b1010)
+    e.vdpps(xmm11, xmm8, xmm9, [False, True, True, False], [False, True, False, True])
     e.vmovups(m128_ptr(rdx + 32), xmm11)
     e.ret()
     e.finalize()
@@ -408,14 +408,14 @@ def simd_dot_product() -> None:
 
     failed = False
     try:
-        e.vdpps(xmm0, xmm1, xmm2, -1, 0)
+        e.vdpps(xmm0, xmm1, xmm2, [True] * 3, [False] * 4)
     except EmitterError:
         failed = True
     assert failed
 
     failed = False
     try:
-        e.vdpps(ymm0, ymm1, ymm2, 0, 16)
+        e.vdpps(ymm0, ymm1, ymm2, [False] * 4, [True] * 5)
     except EmitterError:
         failed = True
     assert failed
@@ -465,6 +465,136 @@ def simd_reciprocal() -> None:
     assert math.isclose(result[23], 0.125, rel_tol=0.001)
 
 
+def simd_blend() -> None:
+    left = (ctypes.c_float * 8)(1, 2, 3, 4, 5, 6, 7, 8)
+    right = (ctypes.c_float * 8)(11, 12, 13, 14, 15, 16, 17, 18)
+    result = (ctypes.c_float * 36)()
+    e = Emitter()
+    e.label('f')
+    e.vmovups(ymm8, m256_ptr(rdi))
+    e.vmovups(ymm9, m256_ptr(rsi))
+    e.vblendps(ymm12, ymm8, ymm9, [1, 2, 1, 2, 2, 1, 2, 1])
+    e.vmovups(m256_ptr(rdx), ymm12)
+    e.vmovups(xmm10, m128_ptr(rdi))
+    e.vblendps(xmm11, xmm10, xmm9, [2, 1, 1, 2])
+    e.vmovups(m128_ptr(rdx + 32), xmm11)
+    e.vblendps(xmm11, xmm11, xmm9, [1, 1, 1, 1])
+    e.vmovups(m128_ptr(rdx + 48), xmm11)
+    e.vblendps(ymm9, ymm8, ymm9, [2, 2, 2, 2, 2, 2, 2, 2])
+    e.vmovups(m256_ptr(rdx + 64), ymm9)
+    e.vmovups(m256_ptr(rdx + 96), ymm8)
+    e.vmovups(m128_ptr(rdx + 128), xmm10)
+    e.vzeroupper()
+    e.ret()
+    e.finalize()
+    try:
+        _ = ccall(e.symbol('f'), ctypes.addressof(left), ctypes.addressof(right), ctypes.addressof(result))
+        assert list(result[:8]) == [1, 12, 3, 14, 15, 6, 17, 8]
+        assert list(result[8:12]) == [11, 2, 3, 14]
+        assert list(result[12:16]) == [11, 2, 3, 14]
+        assert list(result[16:24]) == [11, 12, 13, 14, 15, 16, 17, 18]
+        assert list(result[24:32]) == [1, 2, 3, 4, 5, 6, 7, 8]
+        assert list(result[32:36]) == [1, 2, 3, 4]
+    finally:
+        e.unmap()
+
+    failed = False
+    try:
+        e.vblendps(xmm0, xmm1, xmm2, [1, 2, 1])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vblendps(ymm0, ymm1, ymm2, [1, 2, 1, 2])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vblendps(xmm0, xmm1, xmm2, [1, 2, 0, 1])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vblendps(ymm0, ymm1, ymm2, [1, 2, 1, 2, 1, 2, 3, 1])
+    except EmitterError:
+        failed = True
+    assert failed
+
+
+def simd_ptest() -> None:
+    left = (ctypes.c_uint32 * 8)(1, 0, 0, 0, 2, 0, 0, 0)
+    right = (ctypes.c_uint32 * 8)()
+    e = Emitter()
+    e.label('xmm_flags')
+    e.vmovups(xmm8, m128_ptr(rdi))
+    e.vmovups(xmm9, m128_ptr(rsi))
+    e.vptest(xmm8, xmm9)
+    e.setcc(EQ, al)
+    e.setcc(LTU, dl)
+    e.movzx(rax, al)
+    e.movzx(rdx, dl)
+    e.shl(rdx, 1)
+    e.bitor(rax, rdx)
+    e.ret()
+    e.label('ymm_flags')
+    e.vmovups(ymm8, m256_ptr(rdi))
+    e.vmovups(ymm9, m256_ptr(rsi))
+    e.vptest(ymm8, ymm9)
+    e.setcc(EQ, al)
+    e.setcc(LTU, dl)
+    e.movzx(rax, al)
+    e.movzx(rdx, dl)
+    e.shl(rdx, 1)
+    e.bitor(rax, rdx)
+    e.vzeroupper()
+    e.ret()
+    e.finalize()
+    try:
+        assert ccall(e.symbol('xmm_flags'), ctypes.addressof(left), ctypes.addressof(right)) == 3
+        right[0] = 1
+        assert ccall(e.symbol('xmm_flags'), ctypes.addressof(left), ctypes.addressof(right)) == 2
+        right[0] = 2
+        assert ccall(e.symbol('xmm_flags'), ctypes.addressof(left), ctypes.addressof(right)) == 1
+        right[0] = 3
+        assert ccall(e.symbol('xmm_flags'), ctypes.addressof(left), ctypes.addressof(right)) == 0
+        right[0] = 0
+        assert ccall(e.symbol('ymm_flags'), ctypes.addressof(left), ctypes.addressof(right)) == 3
+        right[4] = 2
+        assert ccall(e.symbol('ymm_flags'), ctypes.addressof(left), ctypes.addressof(right)) == 2
+        right[4] = 4
+        assert ccall(e.symbol('ymm_flags'), ctypes.addressof(left), ctypes.addressof(right)) == 1
+        right[4] = 6
+        assert ccall(e.symbol('ymm_flags'), ctypes.addressof(left), ctypes.addressof(right)) == 0
+    finally:
+        e.unmap()
+
+
+def simd_zero_upper() -> None:
+    source = (ctypes.c_float * 8)(1, 2, 3, 4, 5, 6, 7, 8)
+    result = (ctypes.c_float * 16)()
+    e = Emitter()
+    e.label('f')
+    e.vmovups(ymm0, m256_ptr(rdi))
+    e.vmovups(ymm15, m256_ptr(rdi))
+    e.vzeroupper()
+    e.vmovups(m256_ptr(rsi), ymm0)
+    e.vmovups(m256_ptr(rsi + 32), ymm15)
+    e.ret()
+    e.finalize()
+    try:
+        _ = ccall(e.symbol('f'), ctypes.addressof(source), ctypes.addressof(result))
+        assert list(result[:8]) == [1, 2, 3, 4, 0, 0, 0, 0]
+        assert list(result[8:]) == [1, 2, 3, 4, 0, 0, 0, 0]
+    finally:
+        e.unmap()
+
+
 def test_simd() -> None:
     simd_move()
     simd_arithmetic()
@@ -477,3 +607,6 @@ def test_simd() -> None:
     simd_horizontal()
     simd_dot_product()
     simd_reciprocal()
+    simd_blend()
+    simd_ptest()
+    simd_zero_upper()

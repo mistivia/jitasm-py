@@ -23,6 +23,7 @@ elif os.name == 'posix':
     from test_float32 import test_float32
     from test_label import test_label
     from test_jmp import test_jmp
+    from test_jcc import test_jcc
     from test_lea import test_lea
     from test_mov import test_mov
     from test_movsd import test_movsd
@@ -62,6 +63,7 @@ elif os.name == 'posix':
         test_simd()
     test_label()
     test_jmp()
+    test_jcc()
     test_mov()
     test_movzx()
     test_mul()

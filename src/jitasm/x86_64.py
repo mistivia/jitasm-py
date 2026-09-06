@@ -62,6 +62,11 @@ class CondCode(Enum):
     LTU = 'ltu'
     LEU = 'leu'
     P  = 'p'
+    NP = 'np'
+    O  = 'o'
+    NO = 'no'
+    S  = 's'
+    NS = 'ns'
 
 EQ = CondCode.EQ
 NE = CondCode.NE
@@ -74,6 +79,11 @@ GEU = CondCode.GEU
 LTU = CondCode.LTU
 LEU = CondCode.LEU
 P  = CondCode.P
+NP = CondCode.NP
+O  = CondCode.O
+NO = CondCode.NO
+S  = CondCode.S
+NS = CondCode.NS
 
 COND_CODE_IDS = {
     CondCode.EQ: 0x4,
@@ -87,6 +97,11 @@ COND_CODE_IDS = {
     CondCode.LTU: 0x2,
     CondCode.LEU: 0x6,
     CondCode.P:  0xA,
+    CondCode.NP: 0xB,
+    CondCode.O:  0x0,
+    CondCode.NO: 0x1,
+    CondCode.S:  0x8,
+    CondCode.NS: 0x9,
 }
 
 def xmm_cond_code(cond: CondCode) -> CondCode:
@@ -99,10 +114,12 @@ def xmm_cond_code(cond: CondCode) -> CondCode:
             return CondCode.LTU
         case CondCode.LE:
             return CondCode.LEU
-        case CondCode.EQ | CondCode.NE | CondCode.P:
+        case CondCode.EQ | CondCode.NE | CondCode.P | CondCode.NP:
             return cond
         case CondCode.GTU | CondCode.GEU | CondCode.LTU | CondCode.LEU:
             raise EmitterError('unsigned condition code cannot be used with xmm operands')
+        case CondCode.O | CondCode.NO | CondCode.S | CondCode.NS:
+            raise EmitterError('overflow and sign conditions cannot be used with xmm operands')
         case _:
             assert_never(cond)
 
@@ -426,7 +443,10 @@ def encode_vex[T: (Xmm, Ymm)](
     if opcode < 0 or opcode > 0xFF:
         raise EmitterError('VEX opcode must fit in one byte')
 
-    l = VexL.L256 if type(dst) is Ymm else VexL.L128
+    if type(dst) is Ymm:
+        l = VexL.L256
+    else:
+        l = VexL.L128
     byte2 = ((~(dst.id >> 3) & 1) << 7) | (1 << 6) | ((~(src2.id >> 3) & 1) << 5) | vex_map.value
     if src1 is None:
         vvvv = 0b1111
@@ -511,7 +531,10 @@ class Sib: # r64 + r64 * scale + offset
                     raise EmitterError('both address expressions have a base')
                 if self.index is not None and sib.index is not None:
                     raise EmitterError('both address expressions have an index')
-                base = self.base if self.base is not None else sib.base
+                if self.base is not None:
+                    base = self.base
+                else:
+                    base = sib.base
                 if self.index is not None:
                     index = self.index
                     scale = self.scale
@@ -779,7 +802,10 @@ class Emitter:
         symbols: dict[str, int] = {}
         for name, (section, offset) in self.labels.items():
             if not name.startswith('.'):
-                base_address = text_address if section == Section.TEXT else data_address
+                if section == Section.TEXT:
+                    base_address = text_address
+                else:
+                    base_address = data_address
                 symbols[name] = base_address + offset
         self.symbols = symbols
     
@@ -888,11 +914,18 @@ class Emitter:
         legacy_prefix: bytes = b'',
     ) -> None:
         reg_index = reg_id(reg)
-        rex = (0x48 if rex_w else 0x40) | ((reg_index >> 3) << 2)
+        if rex_w:
+            rex = 0x48
+        else:
+            rex = 0x40
+        rex |= (reg_index >> 3) << 2
         encoded = encode_regmem_op(mem, reg_index)
         rex |= encoded.rex
         emit_rex = rex != 0x40 or (mem.size == BYTE and reg_index >= 4)
-        rex_prefix = bytes((rex,)) if emit_rex else b''
+        if emit_rex:
+            rex_prefix = bytes((rex,))
+        else:
+            rex_prefix = b''
         instruction_start = self.section_offset()
         self.emit_bytes(legacy_prefix + rex_prefix + opcode + bytes((encoded.mod_rm,)) + encoded.suffix)
         if isinstance(mem.addr, Rel):
@@ -904,11 +937,17 @@ class Emitter:
             case (Reg() as reg, Mem() as mem):
                 opcode = b'\x8b'
             case (Mem() as mem, Reg() as reg):
-                opcode = b'\x88' if mem.size == BYTE else b'\x89'
+                if mem.size == BYTE:
+                    opcode = b'\x88'
+                else:
+                    opcode = b'\x89'
             case _:
                 raise EmitterError("op type error in emit_mov_mem")
 
-        legacy_prefix = b'\x66' if mem.size == WORD else b''
+        if mem.size == WORD:
+            legacy_prefix = b'\x66'
+        else:
+            legacy_prefix = b''
         self.emit_mem_op(reg, mem, opcode, mem.size == QWORD, legacy_prefix)
 
     def mov(self, op1: Operand, op2: Operand) -> None:
@@ -956,11 +995,17 @@ class Emitter:
                 src_id = reg_id(src)
                 if src.size == DWORD:
                     rex = 0x40 | ((dst >> 3) << 2) | (src_id >> 3)
-                    rex_prefix = bytes((rex,)) if rex != 0x40 else b''
+                    if rex != 0x40:
+                        rex_prefix = bytes((rex,))
+                    else:
+                        rex_prefix = b''
                     mod_rm = 0xC0 | ((dst & 7) << 3) | (src_id & 7)
                     self.emit_bytes(rex_prefix + bytes((0x8B, mod_rm)))
                 else:
-                    opcode = 0xB6 if src.size == BYTE else 0xB7
+                    if src.size == BYTE:
+                        opcode = 0xB6
+                    else:
+                        opcode = 0xB7
                     rex = 0x48 | ((dst >> 3) << 2) | (src_id >> 3)
                     mod_rm = 0xC0 | ((dst & 7) << 3) | (src_id & 7)
                     self.emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
@@ -971,7 +1016,10 @@ class Emitter:
                 if mem.size == DWORD:
                     self.emit_mov_mem(op1, mem)
                     return
-                opcode = 0xB6 if mem.size == BYTE else 0xB7
+                if mem.size == BYTE:
+                    opcode = 0xB6
+                else:
+                    opcode = 0xB7
                 self.emit_mem_op(op1, mem, bytes((0x0F, opcode)), True)
 
             case _:
@@ -993,7 +1041,10 @@ class Emitter:
                 if src.size == DWORD:
                     self.emit_bytes(bytes((rex, 0x63, mod_rm)))
                 else:
-                    opcode = 0xBE if src.size == BYTE else 0xBF
+                    if src.size == BYTE:
+                        opcode = 0xBE
+                    else:
+                        opcode = 0xBF
                     self.emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
 
             case Mem() as mem:
@@ -1002,7 +1053,10 @@ class Emitter:
                 if mem.size == DWORD:
                     opcode = b'\x63'
                 else:
-                    opcode = b'\x0f\xbe' if mem.size == BYTE else b'\x0f\xbf'
+                    if mem.size == BYTE:
+                        opcode = b'\x0f\xbe'
+                    else:
+                        opcode = b'\x0f\xbf'
                 self.emit_mem_op(op1, mem, opcode, True)
 
             case _:
@@ -1070,7 +1124,10 @@ class Emitter:
         rex = 0x40 | ((xmm.id >> 3) << 2)
         encoded = encode_regmem_op(mem, xmm.id)
         rex |= encoded.rex
-        rex_prefix = bytes((rex,)) if rex != 0x40 else b''
+        if rex != 0x40:
+            rex_prefix = bytes((rex,))
+        else:
+            rex_prefix = b''
         instruction_start = self.section_offset()
         self.emit_bytes(
             prefix + rex_prefix + bytes((0x0F, opcode, encoded.mod_rm)) + encoded.suffix
@@ -1086,7 +1143,10 @@ class Emitter:
                 if dst.id < 0 or dst.id > 15 or src.id < 0 or src.id > 15:
                     raise EmitterError(f'{name}: invalid xmm register')
                 rex = 0x40 | ((dst.id >> 3) << 2) | (src.id >> 3)
-                rex_prefix = bytes((rex,)) if rex != 0x40 else b''
+                if rex != 0x40:
+                    rex_prefix = bytes((rex,))
+                else:
+                    rex_prefix = b''
                 mod_rm = 0xC0 | ((dst.id & 7) << 3) | (src.id & 7)
                 self.emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x10, mod_rm)))
             case (Xmm() as dst, Mem() as mem):
@@ -1153,7 +1213,10 @@ class Emitter:
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError(f'{name}: invalid xmm register')
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
-        rex_prefix = bytes((rex,)) if rex != 0x40 else b''
+        if rex != 0x40:
+            rex_prefix = bytes((rex,))
+        else:
+            rex_prefix = b''
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (op2.id & 7)
         self.emit_bytes(prefix + rex_prefix + bytes((0x0F, opcode, mod_rm)))
 
@@ -1327,7 +1390,10 @@ class Emitter:
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError(f'{name}: invalid xmm register')
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
-        rex_prefix = bytes((rex,)) if rex != 0x40 else b''
+        if rex != 0x40:
+            rex_prefix = bytes((rex,))
+        else:
+            rex_prefix = b''
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (op2.id & 7)
         self.emit_bytes(
             b'\x66' + rex_prefix + bytes((0x0F, 0x3A, opcode, mod_rm, mode))
@@ -1675,7 +1741,10 @@ class Emitter:
                 if reg == RIP or reg.size != QWORD:
                     raise EmitterError('call: target must be a qword register')
                 target_id = reg_id(reg)
-                rex_prefix = bytes((0x40 | (target_id >> 3),)) if target_id >= 8 else b''
+                if target_id >= 8:
+                    rex_prefix = bytes((0x40 | (target_id >> 3),))
+                else:
+                    rex_prefix = b''
                 mod_rm = 0xD0 | (target_id & 7)
                 self.emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
             case _:
@@ -1692,7 +1761,10 @@ class Emitter:
                 if reg == RIP or reg.size != QWORD:
                     raise EmitterError('jmp: target must be a qword register')
                 target_id = reg_id(reg)
-                rex_prefix = bytes((0x40 | (target_id >> 3),)) if target_id >= 8 else b''
+                if target_id >= 8:
+                    rex_prefix = bytes((0x40 | (target_id >> 3),))
+                else:
+                    rex_prefix = b''
                 mod_rm = 0xE0 | (target_id & 7)
                 self.emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
             case _:
@@ -1727,7 +1799,10 @@ class Emitter:
         if x1.id < 0 or x1.id > 15 or x2.id < 0 or x2.id > 15:
             raise EmitterError(f'{name}: invalid xmm register')
         rex = 0x40 | ((x1.id >> 3) << 2) | (x2.id >> 3)
-        rex_prefix = bytes((rex,)) if rex != 0x40 else b''
+        if rex != 0x40:
+            rex_prefix = bytes((rex,))
+        else:
+            rex_prefix = b''
         mod_rm = 0xC0 | ((x1.id & 7) << 3) | (x2.id & 7)
         self.emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x2E, mod_rm)))
 
@@ -1765,13 +1840,127 @@ class Emitter:
         self.emit_bytes(bytes((0x0F, 0x80 | COND_CODE_IDS[cond])) + b'\x00\x00\x00\x00')
         self.add_label_ref(label, instruction_start + 2, RipDelta(len(self.text)))
 
+    def ja(self, label: str) -> None:
+        self.jcc(GTU, label)
+
+    def jae(self, label: str) -> None:
+        self.jcc(GEU, label)
+
+    def jb(self, label: str) -> None:
+        self.jcc(LTU, label)
+
+    def jbe(self, label: str) -> None:
+        self.jcc(LEU, label)
+
+    def jc(self, label: str) -> None:
+        self.jcc(LTU, label)
+
+    def jnc(self, label: str) -> None:
+        self.jcc(GEU, label)
+
+    def je(self, label: str) -> None:
+        self.jcc(EQ, label)
+
+    def jne(self, label: str) -> None:
+        self.jcc(NE, label)
+
+    def jz(self, label: str) -> None:
+        self.jcc(EQ, label)
+
+    def jnz(self, label: str) -> None:
+        self.jcc(NE, label)
+
+    def jg(self, label: str) -> None:
+        self.jcc(GT, label)
+
+    def jge(self, label: str) -> None:
+        self.jcc(GE, label)
+
+    def jl(self, label: str) -> None:
+        self.jcc(LT, label)
+
+    def jle(self, label: str) -> None:
+        self.jcc(LE, label)
+
+    def jna(self, label: str) -> None:
+        self.jcc(LEU, label)
+
+    def jnae(self, label: str) -> None:
+        self.jcc(LTU, label)
+
+    def jnb(self, label: str) -> None:
+        self.jcc(GEU, label)
+
+    def jnbe(self, label: str) -> None:
+        self.jcc(GTU, label)
+
+    def jng(self, label: str) -> None:
+        self.jcc(LE, label)
+
+    def jnge(self, label: str) -> None:
+        self.jcc(LT, label)
+
+    def jnl(self, label: str) -> None:
+        self.jcc(GE, label)
+
+    def jnle(self, label: str) -> None:
+        self.jcc(GT, label)
+
+    def jo(self, label: str) -> None:
+        self.jcc(O, label)
+
+    def jno(self, label: str) -> None:
+        self.jcc(NO, label)
+
+    def js(self, label: str) -> None:
+        self.jcc(S, label)
+
+    def jns(self, label: str) -> None:
+        self.jcc(NS, label)
+
+    def jp(self, label: str) -> None:
+        self.jcc(P, label)
+
+    def jpe(self, label: str) -> None:
+        self.jcc(P, label)
+
+    def jnp(self, label: str) -> None:
+        self.jcc(NP, label)
+
+    def jpo(self, label: str) -> None:
+        self.jcc(NP, label)
+
+    def jeq(self, label: str) -> None:
+        self.jcc(EQ, label)
+
+    def jgt(self, label: str) -> None:
+        self.jcc(GT, label)
+
+    def jlt(self, label: str) -> None:
+        self.jcc(LT, label)
+
+    def jgtu(self, label: str) -> None:
+        self.jcc(GTU, label)
+
+    def jgeu(self, label: str) -> None:
+        self.jcc(GEU, label)
+
+    def jltu(self, label: str) -> None:
+        self.jcc(LTU, label)
+
+    def jleu(self, label: str) -> None:
+        self.jcc(LEU, label)
+
     def setcc(self, cond: CondCode, r: Reg) -> None:
         self.require_text_section('setcc')
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('setcc: destination must be a byte register')
         dst = reg_id(r)
         rex = 0x40 | (dst >> 3)
-        rex_prefix = bytes((rex,)) if rex != 0x40 or dst >= 4 else b''
+        if rex != 0x40 or dst >= 4:
+            rex_prefix = bytes((rex,))
+        else:
+            rex_prefix = b''
         mod_rm = 0xC0 | (dst & 7)
         self.emit_bytes(rex_prefix + bytes((0x0F, 0x90 | COND_CODE_IDS[cond], mod_rm)))
 
@@ -2147,13 +2336,16 @@ class Emitter:
         self.require_text_section('vhsubps')
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
-    def vdpps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, input_mask: int, output_mask: int) -> None:
+    def vdpps[T: (Xmm, Ymm)](
+        self, dst: T, src1: T, src2: T, input_mask: list[bool], output_mask: list[bool],
+    ) -> None:
         self.require_text_section('vdpps')
-        if input_mask < 0 or input_mask > 0x0F:
-            raise EmitterError('vdpps: input mask must fit in 4 bits')
-        if output_mask < 0 or output_mask > 0x0F:
-            raise EmitterError('vdpps: output mask must fit in 4 bits')
-        imm8 = input_mask << 4 | output_mask
+        if len(input_mask) != 4:
+            raise EmitterError('vdpps: input mask must contain four booleans')
+        if len(output_mask) != 4:
+            raise EmitterError('vdpps: output mask must contain four booleans')
+        imm8 = sum(int(value) << (i + 4) for i, value in enumerate(input_mask))
+        imm8 |= sum(int(value) << i for i, value in enumerate(output_mask))
         self.emit_bytes(encode_vex(dst, src1, src2, 0x40, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     def vrcpps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
@@ -2163,6 +2355,27 @@ class Emitter:
     def vrsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
         self.require_text_section('vrsqrtps')
         self.emit_bytes(encode_vex(dst, None, src, 0x52, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+
+    def vzeroupper(self) -> None:
+        self.require_text_section('vzeroupper')
+        if not cpu_features.avx:
+            raise EmitterError('cannot encode VEX instruction without AVX support')
+        self.emit_bytes(b'\xc5\xf8\x77')
+
+    def vptest[T: (Xmm, Ymm)](self, op1: T, op2: T) -> None:
+        self.require_text_section('vptest')
+        self.emit_bytes(encode_vex(op1, None, op2, 0x17, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+
+    def vblendps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, mask: list[int]) -> None:
+        self.require_text_section('vblendps')
+        if isinstance(dst, Xmm):
+            size = 4
+        else:
+            size = 8
+        if len(mask) != size or any(value not in (1, 2) for value in mask):
+            raise EmitterError(f'vblendps: mask must contain {size} integers, each 1 or 2')
+        imm8 = sum((value - 1) << i for i, value in enumerate(mask))
+        self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
 def init_cpu_features() -> None:
     global cpu_features
@@ -2198,8 +2411,14 @@ def init_cpu_features() -> None:
     query = ctypes.CFUNCTYPE(ctypes.c_uint64)
     try:
         max_basic_leaf = query(e.symbol('max_basic_leaf'))()
-        leaf1_ecx = query(e.symbol('leaf1_ecx'))() if max_basic_leaf >= 1 else 0
-        leaf7_ebx = query(e.symbol('leaf7_ebx'))() if max_basic_leaf >= 7 else 0
+        if max_basic_leaf >= 1:
+            leaf1_ecx = query(e.symbol('leaf1_ecx'))()
+        else:
+            leaf1_ecx = 0
+        if max_basic_leaf >= 7:
+            leaf7_ebx = query(e.symbol('leaf7_ebx'))()
+        else:
+            leaf7_ebx = 0
     finally:
         e.unmap()
 
