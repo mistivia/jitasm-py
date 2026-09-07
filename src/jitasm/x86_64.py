@@ -2377,6 +2377,29 @@ class Emitter:
         imm8 = sum((value - 1) << i for i, value in enumerate(mask))
         self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
+    def vshufps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, imm: list[int]) -> None:
+        self.require_text_section('vshufps')
+        if len(imm) != 4 or any(value < 0 or value > 3 for value in imm):
+            raise EmitterError('vshufps: imm must contain four integers between 0 and 3')
+        imm8 = sum(value << (2 * i) for i, value in enumerate(imm))
+        self.emit_bytes(encode_vex(dst, src1, src2, 0xC6, VexMap.MAP_0F, VexPP.NONE, VexW.W0, imm8))
+
+    @overload
+    def vpermilps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: list[int]) -> None: ...
+
+    @overload
+    def vpermilps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None: ...
+
+    def vpermilps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T | list[int]) -> None:
+        self.require_text_section('vpermilps')
+        if isinstance(src2, list):
+            if len(src2) != 4 or any(value < 0 or value > 3 for value in src2):
+                raise EmitterError('vpermilps: imm must contain four integers between 0 and 3')
+            imm8 = sum(value << (2 * i) for i, value in enumerate(src2))
+            self.emit_bytes(encode_vex(dst, None, src1, 0x04, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
+        else:
+            self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+
 def init_cpu_features() -> None:
     global cpu_features
     e = Emitter()

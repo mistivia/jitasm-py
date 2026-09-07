@@ -595,6 +595,140 @@ def simd_zero_upper() -> None:
         e.unmap()
 
 
+def simd_shuffle() -> None:
+    left = (ctypes.c_float * 8)(1, 2, 3, 4, 5, 6, 7, 8)
+    right = (ctypes.c_float * 8)(9, 10, 11, 12, 13, 14, 15, 16)
+    result = (ctypes.c_float * 12)()
+    e = Emitter()
+    e.label('f')
+    e.vmovups(ymm8, m256_ptr(rdi))
+    e.vmovups(ymm9, m256_ptr(rsi))
+    e.vshufps(ymm10, ymm8, ymm9, [3, 0, 2, 1])
+    e.vmovups(m256_ptr(rdx), ymm10)
+    e.vshufps(xmm8, xmm8, xmm9, [0, 1, 2, 1])
+    e.vmovups(m128_ptr(rdx + 32), xmm8)
+    e.vzeroupper()
+    e.ret()
+    e.finalize()
+    try:
+        _ = ccall(e.symbol('f'), ctypes.addressof(left), ctypes.addressof(right), ctypes.addressof(result))
+        assert list(result[:8]) == [4, 1, 11, 10, 8, 5, 15, 14]
+        assert list(result[8:]) == [1, 2, 11, 10]
+    finally:
+        e.unmap()
+
+
+def simd_permute_immediate() -> None:
+    source = (ctypes.c_float * 8)(1, 2, 3, 4, 5, 6, 7, 8)
+    result = (ctypes.c_float * 12)()
+    e = Emitter()
+    e.label('f')
+    e.vmovups(ymm14, m256_ptr(rdi))
+    e.vpermilps(ymm15, ymm14, [3, 2, 1, 0])
+    e.vmovups(m256_ptr(rsi), ymm15)
+    e.vpermilps(xmm14, xmm14, [2, 0, 2, 1])
+    e.vmovups(m128_ptr(rsi + 32), xmm14)
+    e.vzeroupper()
+    e.ret()
+    e.finalize()
+    try:
+        _ = ccall(e.symbol('f'), ctypes.addressof(source), ctypes.addressof(result))
+        assert list(result[:8]) == [4, 3, 2, 1, 8, 7, 6, 5]
+        assert list(result[8:]) == [3, 1, 3, 2]
+    finally:
+        e.unmap()
+
+
+def simd_permute_variable() -> None:
+    source = (ctypes.c_float * 8)(1, 2, 3, 4, 5, 6, 7, 8)
+    control = (ctypes.c_uint32 * 8)(3, 0, 6, 0xffffffff, 1, 3, 0, 2)
+    result = (ctypes.c_float * 12)()
+    e = Emitter()
+    e.label('f')
+    e.vmovups(ymm8, m256_ptr(rdi))
+    e.vmovups(ymm9, m256_ptr(rsi))
+    e.vpermilps(ymm10, ymm8, ymm9)
+    e.vmovups(m256_ptr(rdx), ymm10)
+    e.vpermilps(xmm9, xmm8, xmm9)
+    e.vmovups(m128_ptr(rdx + 32), xmm9)
+    e.vzeroupper()
+    e.ret()
+    e.finalize()
+    try:
+        _ = ccall(e.symbol('f'), ctypes.addressof(source), ctypes.addressof(control), ctypes.addressof(result))
+        assert list(result[:8]) == [4, 1, 3, 4, 6, 8, 5, 7]
+        assert list(result[8:]) == [4, 1, 3, 4]
+    finally:
+        e.unmap()
+
+
+def simd_shuffle_invalid() -> None:
+    e = Emitter()
+    failed = False
+    try:
+        e.vshufps(xmm0, xmm1, xmm2, [0, 1, 2])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vshufps(ymm0, ymm1, ymm2, [0, 1, 2, 4])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vshufps(xmm0, xmm1, xmm2, [-1, 0, 1, 2])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vpermilps(xmm0, xmm1, [0, 1, 2, 3, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vpermilps(ymm0, ymm1, [0, 1, 2, 4])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vpermilps(xmm0, xmm1, [-1, 0, 1, 2])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    e.set_section(Section.DATA)
+    failed = False
+    try:
+        e.vshufps(xmm0, xmm1, xmm2, [0, 1, 2, 3])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vpermilps(xmm0, xmm1, [0, 1, 2, 3])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vpermilps(ymm0, ymm1, ymm2)
+    except EmitterError:
+        failed = True
+    assert failed
+
+
 def test_simd() -> None:
     simd_move()
     simd_arithmetic()
@@ -610,3 +744,7 @@ def test_simd() -> None:
     simd_blend()
     simd_ptest()
     simd_zero_upper()
+    simd_shuffle()
+    simd_permute_immediate()
+    simd_permute_variable()
+    simd_shuffle_invalid()
