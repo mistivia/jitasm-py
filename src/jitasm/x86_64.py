@@ -2479,6 +2479,39 @@ class Emitter:
         imm8 |= sum(value << i for i, value in enumerate(zero_mask))
         self.emit_bytes(encode_vex(dst, src1, src2, 0x21, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
+    @overload
+    def vbroadcastss(self, dst: Xmm, src: Mem) -> None: ...
+
+    @overload
+    def vbroadcastss(self, dst: Ymm, src: Mem) -> None: ...
+
+    @overload
+    def vbroadcastss(self, dst: Xmm, src: Xmm) -> None: ...
+
+    @overload
+    def vbroadcastss(self, dst: Ymm, src: Xmm) -> None: ...
+
+    def vbroadcastss(self, dst: Xmm | Ymm, src: Xmm | Mem) -> None:
+        self.require_text_section('vbroadcastss')
+        require_avx()
+        if isinstance(src, Xmm):
+            require_avx2()
+            if isinstance(dst, Ymm):
+                # The source field only encodes the register number; the opcode fixes its width to XMM.
+                self.emit_bytes(encode_vex(dst, None, Ymm(src.id), 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+            else:
+                self.emit_bytes(encode_vex(dst, None, src, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+            return
+        if src.size != DWORD:
+            raise EmitterError('vbroadcastss: source must be dword memory')
+        l = VexL.L128
+        if isinstance(dst, Ymm):
+            l = VexL.L256
+        instruction_start = self.section_offset()
+        self.emit_bytes(encode_vex_rm(dst.id, src, l, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+        if isinstance(src.addr, Rel):
+            self.add_label_ref(src.addr.label, instruction_start + 5, RipDelta(len(self.text)))
+
 def init_cpu_features() -> None:
     global cpu_features
     e = Emitter()

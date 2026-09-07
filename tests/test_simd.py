@@ -4,6 +4,7 @@
 import ctypes
 import math
 
+import jitasm.x86_64 as x86
 from jitasm.utils import ccall
 from jitasm.x86_64 import *
 
@@ -835,6 +836,133 @@ def simd_insert_invalid() -> None:
     assert failed
 
 
+def simd_broadcast_memory() -> None:
+    source = (ctypes.c_float * 4)(1.5, -2.5, 3.5, 4.5)
+    result = (ctypes.c_float * 28)(*([9.0] * 28))
+    e = Emitter()
+    e.label('f')
+    e.vmovups(ymm8, m256_ptr(rsi))
+    e.vbroadcastss(xmm8, dword_ptr(rdi))
+    e.vmovups(m256_ptr(rsi), ymm8)
+    e.mov(r8, rdi)
+    e.mov(r9, 2)
+    e.vbroadcastss(ymm15, dword_ptr(r8 + r9 * 4 - 4))
+    e.vmovups(m256_ptr(rsi + 32), ymm15)
+    e.vbroadcastss(xmm10, dword_ptr(RIP + 'value'))
+    e.vmovups(m128_ptr(rsi + 64), xmm10)
+    e.vbroadcastss(ymm11, dword_ptr(RIP + 'value'))
+    e.vmovups(m256_ptr(rsi + 80), ymm11)
+    e.vzeroupper()
+    e.ret()
+    e.set_section(Section.DATA)
+    e.label('value')
+    e.dd(-3.25)
+    e.finalize()
+    try:
+        _ = ccall(e.symbol('f'), ctypes.addressof(source), ctypes.addressof(result))
+        assert list(result[:8]) == [1.5, 1.5, 1.5, 1.5, 0, 0, 0, 0]
+        assert list(result[8:16]) == [-2.5] * 8
+        assert list(result[16:20]) == [-3.25] * 4
+        assert list(result[20:]) == [-3.25] * 8
+    finally:
+        e.unmap()
+
+
+def simd_broadcast_register() -> None:
+    source = (ctypes.c_uint32 * 8)(0x80000000, 1, 2, 3, 4, 5, 6, 7)
+    result = (ctypes.c_uint32 * 20)()
+    e = Emitter()
+    e.label('f')
+    e.vmovups(ymm8, m256_ptr(rdi))
+    e.vmovups(ymm9, ymm8)
+    e.vbroadcastss(xmm9, xmm8)
+    e.vmovups(m256_ptr(rsi), ymm9)
+    e.vbroadcastss(ymm15, xmm8)
+    e.vmovups(m256_ptr(rsi + 32), ymm15)
+    e.vbroadcastss(xmm8, xmm8)
+    e.vmovups(m128_ptr(rsi + 64), xmm8)
+    e.vzeroupper()
+    e.ret()
+    e.finalize()
+    try:
+        _ = ccall(e.symbol('f'), ctypes.addressof(source), ctypes.addressof(result))
+        assert list(result[:8]) == [0x80000000, 0x80000000, 0x80000000, 0x80000000, 0, 0, 0, 0]
+        assert list(result[8:16]) == [0x80000000] * 8
+        assert list(result[16:]) == [0x80000000] * 4
+    finally:
+        e.unmap()
+
+
+def simd_broadcast_invalid() -> None:
+    e = Emitter()
+    failed = False
+    try:
+        e.vbroadcastss(xmm0, m128_ptr(rdi))
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vbroadcastss(ymm0, qword_ptr(rdi))
+    except EmitterError:
+        failed = True
+    assert failed
+
+    e.set_section(Section.DATA)
+    failed = False
+    try:
+        e.vbroadcastss(xmm0, dword_ptr(rdi))
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vbroadcastss(ymm0, xmm1)
+    except EmitterError:
+        failed = True
+    assert failed
+
+
+def simd_broadcast_features() -> None:
+    saved = x86.cpu_features
+    try:
+        x86.cpu_features = CpuFeatures(True, False, False)
+        simd_broadcast_memory()
+        e = Emitter()
+        failed = False
+        try:
+            e.vbroadcastss(xmm0, xmm1)
+        except EmitterError:
+            failed = True
+        assert failed
+
+        failed = False
+        try:
+            e.vbroadcastss(ymm0, xmm1)
+        except EmitterError:
+            failed = True
+        assert failed
+
+        x86.cpu_features = CpuFeatures(False, False, False)
+        failed = False
+        try:
+            e.vbroadcastss(xmm0, dword_ptr(rdi))
+        except EmitterError:
+            failed = True
+        assert failed
+
+        failed = False
+        try:
+            e.vbroadcastss(ymm0, dword_ptr(rdi))
+        except EmitterError:
+            failed = True
+        assert failed
+    finally:
+        x86.cpu_features = saved
+
+
 def test_simd() -> None:
     simd_move()
     simd_arithmetic()
@@ -856,3 +984,7 @@ def test_simd() -> None:
     simd_shuffle_invalid()
     simd_insert()
     simd_insert_invalid()
+    simd_broadcast_features()
+    simd_broadcast_invalid()
+    if x86.cpu_features.avx2:
+        simd_broadcast_register()
