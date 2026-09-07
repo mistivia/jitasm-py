@@ -729,6 +729,112 @@ def simd_shuffle_invalid() -> None:
     assert failed
 
 
+def simd_insert() -> None:
+    left = (ctypes.c_float * 8)(1, 2, 3, 4, 5, 6, 7, 8)
+    right = (ctypes.c_float * 4)(11, 12, 13, 14)
+    result = (ctypes.c_float * 32)()
+    e = Emitter()
+    e.label('f')
+    e.vmovups(ymm8, m256_ptr(rdi))
+    e.vmovups(xmm9, m128_ptr(rsi))
+    e.vmovups(ymm10, ymm8)
+    e.vinsertps(xmm10, xmm8, xmm9, 0, 3, [0, 0, 0, 0])
+    e.vmovups(m256_ptr(rdx), ymm10)
+    e.vinsertps(xmm11, xmm8, xmm9, 1, 2, [1, 0, 0, 1])
+    e.vmovups(m128_ptr(rdx + 32), xmm11)
+    e.vinsertps(xmm12, xmm8, xmm9, 2, 1, [0, 1, 0, 0])
+    e.vmovups(m128_ptr(rdx + 48), xmm12)
+    e.vinsertps(xmm13, xmm8, xmm9, 3, 0, [0, 0, 1, 0])
+    e.vmovups(m128_ptr(rdx + 64), xmm13)
+    e.vinsertps(xmm14, xmm8, xmm9, 2, 3, [0, 0, 1, 0])
+    e.vmovups(m128_ptr(rdx + 80), xmm14)
+    e.vinsertps(xmm8, xmm8, xmm9, 0, 0, [1, 1, 1, 1])
+    e.vmovups(m128_ptr(rdx + 96), xmm8)
+    e.vinsertps(xmm9, xmm9, xmm9, 3, 1, [0, 0, 0, 0])
+    e.vmovups(m128_ptr(rdx + 112), xmm9)
+    e.vzeroupper()
+    e.ret()
+    e.finalize()
+    try:
+        _ = ccall(e.symbol('f'), ctypes.addressof(left), ctypes.addressof(right), ctypes.addressof(result))
+        assert list(result[:8]) == [14, 2, 3, 4, 0, 0, 0, 0]
+        assert list(result[8:12]) == [0, 13, 3, 0]
+        assert list(result[12:16]) == [1, 0, 12, 4]
+        assert list(result[16:20]) == [1, 2, 0, 11]
+        assert list(result[20:24]) == [1, 2, 0, 4]
+        assert list(result[24:28]) == [0, 0, 0, 0]
+        assert list(result[28:]) == [11, 12, 13, 12]
+    finally:
+        e.unmap()
+
+
+def simd_insert_invalid() -> None:
+    e = Emitter()
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, -1, 0, [0, 0, 0, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, 4, 0, [0, 0, 0, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, 0, -1, [0, 0, 0, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, 0, 4, [0, 0, 0, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, 0, 0, [0, 0, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, 0, 0, [0, 0, 0, 0, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, 0, 0, [0, 2, 0, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, 0, 0, [0, 0, -1, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+    e.set_section(Section.DATA)
+    failed = False
+    try:
+        e.vinsertps(xmm0, xmm1, xmm2, 0, 0, [0, 0, 0, 0])
+    except EmitterError:
+        failed = True
+    assert failed
+
+
 def test_simd() -> None:
     simd_move()
     simd_arithmetic()
@@ -748,3 +854,5 @@ def test_simd() -> None:
     simd_permute_immediate()
     simd_permute_variable()
     simd_shuffle_invalid()
+    simd_insert()
+    simd_insert_invalid()

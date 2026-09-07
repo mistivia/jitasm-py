@@ -226,6 +226,7 @@ to 16 bytes for XMM or 32 bytes for YMM; `vmovups` has no alignment requirement.
 - `VSHUFPS`: `vshufps xmm, xmm, xmm, imm` / `vshufps ymm, ymm, ymm, imm`
 - `VPERMILPS`: `vpermilps xmm, xmm, imm` / `vpermilps ymm, ymm, imm`
 - `VPERMILPS`: `vpermilps xmm, xmm, xmm` / `vpermilps ymm, ymm, ymm`
+- `VINSERTPS`: `vinsertps xmm, xmm, xmm, count_dst, count_src, zero_mask`
 - `VPTEST`: `vptest xmm, xmm` / `vptest ymm, ymm`  // set ZF and CF from packed bitwise tests
 - `VZEROUPPER`: `vzeroupper`  // clear bits 128–255 of all YMM registers
 

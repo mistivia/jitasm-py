@@ -191,6 +191,18 @@ class Reg:
 class EmitterError(RuntimeError):
     pass
 
+def require_avx() -> None:
+    if not cpu_features.avx:
+        raise EmitterError('cannot encode VEX instruction without AVX support')
+
+def require_avx2() -> None:
+    if not cpu_features.avx2:
+        raise EmitterError('cannot encode AVX2 instruction without AVX2 support')
+
+def require_fma() -> None:
+    if not cpu_features.fma:
+        raise EmitterError('cannot encode FMA instruction without FMA support')
+
 RAX = Reg(RegName.RAX, QWORD)
 RBX = Reg(RegName.RBX, QWORD)
 RCX = Reg(RegName.RCX, QWORD)
@@ -432,8 +444,6 @@ def encode_vex[T: (Xmm, Ymm)](
     w: VexW,
     imm: int | None = None
 ) -> bytes:
-    if not cpu_features.avx:
-        raise EmitterError('cannot encode VEX instruction without AVX support')
     if dst.id < 0 or dst.id > 15:
         raise EmitterError('invalid VEX register')
     if src1 is not None and (src1.id < 0 or src1.id > 15):
@@ -492,8 +502,6 @@ def encode_vex_rm(
     pp: VexPP,
     w: VexW,
 ) -> bytes:
-    if not cpu_features.avx:
-        raise EmitterError('cannot encode VEX instruction without AVX support')
     if opcode < 0 or opcode > 0xFF:
         raise EmitterError('VEX opcode must fit in one byte')
     match (dst, src):
@@ -1201,12 +1209,14 @@ class Emitter:
                 raise EmitterError(f'{name}: invalid form')
 
     def movss_avx(self, op1: Operand, op2: Operand) -> None:
+        require_avx()
         self.emit_mov_scalar_avx(op1, op2, DWORD, VexPP.PF3, 'movss')
 
     def movsd_sse(self, op1: Operand, op2: Operand) -> None:
         self.emit_mov_scalar(op1, op2, QWORD, b'\xf2', 'movsd')
 
     def movsd_avx(self, op1: Operand, op2: Operand) -> None:
+        require_avx()
         self.emit_mov_scalar_avx(op1, op2, QWORD, VexPP.PF2, 'movsd')
 
     def emit_scalar_arith(self, op1: Xmm, op2: Xmm, opcode: int, prefix: bytes, name: str) -> None:
@@ -1257,27 +1267,35 @@ class Emitter:
         self.emit_bytes(encode_vex(op1, op1, op2, opcode, VexMap.MAP_0F, pp, VexW.W0))
 
     def addss_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF3, 'addss')
 
     def subss_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF3, 'subss')
 
     def mulss_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF3, 'mulss')
 
     def divss_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF3, 'divss')
 
     def addsd_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF2, 'addsd')
 
     def subsd_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF2, 'subsd')
 
     def mulsd_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF2, 'mulsd')
 
     def divsd_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF2, 'divsd')
 
     def movss(self, op1: Operand, op2: Operand) -> None:
@@ -1445,27 +1463,35 @@ class Emitter:
         ))
 
     def rounds_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_round_scalar_avx(op1, op2, 0, 0x0A, 'rounds')
 
     def floors_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_round_scalar_avx(op1, op2, 1, 0x0A, 'floors')
 
     def ceils_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_round_scalar_avx(op1, op2, 2, 0x0A, 'ceils')
 
     def truncs_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_round_scalar_avx(op1, op2, 3, 0x0A, 'truncs')
 
     def roundd_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_round_scalar_avx(op1, op2, 0, 0x0B, 'roundd')
 
     def floord_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_round_scalar_avx(op1, op2, 1, 0x0B, 'floord')
 
     def ceild_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_round_scalar_avx(op1, op2, 2, 0x0B, 'ceild')
 
     def truncd_avx(self, op1: Xmm, op2: Xmm) -> None:
+        require_avx()
         self.emit_round_scalar_avx(op1, op2, 3, 0x0B, 'truncd')
 
     def rounds(self, op1: Xmm, op2: Xmm) -> None:
@@ -1817,9 +1843,11 @@ class Emitter:
         self.emit_bytes(encode_vex(x1, None, x2, 0x2E, VexMap.MAP_0F, pp, VexW.W0))
 
     def ucomiss_avx(self, x1: Xmm, x2: Xmm) -> None:
+        require_avx()
         self.emit_ucomis_avx(x1, x2, VexPP.NONE, 'ucomiss')
 
     def ucomisd_avx(self, x1: Xmm, x2: Xmm) -> None:
+        require_avx()
         self.emit_ucomis_avx(x1, x2, VexPP.P66, 'ucomisd')
 
     def ucomiss(self, x1: Xmm, x2: Xmm) -> None:
@@ -2180,9 +2208,11 @@ class Emitter:
             self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
     def vmovaps(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem) -> None:
+        require_avx()
         self.emit_vmov(op1, op2, 0x28, 0x29, 'vmovaps')
 
     def vmovups(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem) -> None:
+        require_avx()
         self.emit_vmov(op1, op2, 0x10, 0x11, 'vmovups')
 
     def emit_v_arith_ps[T: (Xmm, Ymm)](
@@ -2203,23 +2233,29 @@ class Emitter:
                 raise EmitterError(f'{name}: invalid form')
 
     def vaddps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x58, 'vaddps')
 
     def vsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5C, 'vsubps')
 
     def vmulps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x59, 'vmulps')
 
     def vdivps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5E, 'vdivps')
 
     def vaddsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
         self.require_text_section('vaddsubps')
+        require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0xD0, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
         self.require_text_section('vsqrtps')
+        require_avx()
         match (dst, src):
             case (Xmm(), Xmm()):
                 self.emit_bytes(encode_vex(dst, None, src, 0x51, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
@@ -2229,23 +2265,29 @@ class Emitter:
                 raise EmitterError('vsqrtps: invalid form')
 
     def vmaxps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5F, 'vmaxps')
 
     def vminps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5D, 'vminps')
 
     def vandps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x54, 'vandps')
 
     def vandnps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
         self.require_text_section('vandnps')
+        require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x55, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def vorps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x56, 'vorps')
 
     def vxorps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
         self.require_text_section('vxorps')
+        require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x57, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def emit_vroundps[T: (Xmm, Ymm)](self, dst: T, src: T, mode: int) -> None:
@@ -2265,15 +2307,19 @@ class Emitter:
                 raise EmitterError('vroundps: invalid form')
 
     def vroundps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+        require_avx()
         self.emit_vroundps(dst, src, 0)
 
     def vfloorps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+        require_avx()
         self.emit_vroundps(dst, src, 1)
 
     def vceilps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+        require_avx()
         self.emit_vroundps(dst, src, 2)
 
     def vtruncps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+        require_avx()
         self.emit_vroundps(dst, src, 3)
 
     def vcmpps[T: (Xmm, Ymm)](
@@ -2284,6 +2330,7 @@ class Emitter:
         predicate: int,
     ) -> None:
         self.require_text_section('vcmpps')
+        require_avx()
         if predicate < 0 or predicate > 7:
             raise EmitterError('vcmpps: predicate must be between 0 and 7')
         match (dst, src1, src2):
@@ -2299,47 +2346,60 @@ class Emitter:
                 raise EmitterError('vcmpps: invalid form')
 
     def veqps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src1, src2, 0)
 
     def vltps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src1, src2, 1)
 
     def vleps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src1, src2, 2)
 
     def vunordps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src1, src2, 3)
 
     def vneps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src1, src2, 4)
 
     def vnltps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src1, src2, 5)
 
     def vnleps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src1, src2, 6)
 
     def vordps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src1, src2, 7)
 
     def vgtps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src2, src1, 1)
 
     def vgeps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+        require_avx()
         self.vcmpps(dst, src2, src1, 2)
     
     def vhaddps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
         self.require_text_section('vhaddps')
+        require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7C, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vhsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
         self.require_text_section('vhsubps')
+        require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vdpps[T: (Xmm, Ymm)](
         self, dst: T, src1: T, src2: T, input_mask: list[bool], output_mask: list[bool],
     ) -> None:
         self.require_text_section('vdpps')
+        require_avx()
         if len(input_mask) != 4:
             raise EmitterError('vdpps: input mask must contain four booleans')
         if len(output_mask) != 4:
@@ -2350,24 +2410,27 @@ class Emitter:
 
     def vrcpps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
         self.require_text_section('vrcpps')
+        require_avx()
         self.emit_bytes(encode_vex(dst, None, src, 0x53, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def vrsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
         self.require_text_section('vrsqrtps')
+        require_avx()
         self.emit_bytes(encode_vex(dst, None, src, 0x52, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def vzeroupper(self) -> None:
         self.require_text_section('vzeroupper')
-        if not cpu_features.avx:
-            raise EmitterError('cannot encode VEX instruction without AVX support')
+        require_avx()
         self.emit_bytes(b'\xc5\xf8\x77')
 
     def vptest[T: (Xmm, Ymm)](self, op1: T, op2: T) -> None:
         self.require_text_section('vptest')
+        require_avx()
         self.emit_bytes(encode_vex(op1, None, op2, 0x17, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
 
     def vblendps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, mask: list[int]) -> None:
         self.require_text_section('vblendps')
+        require_avx()
         if isinstance(dst, Xmm):
             size = 4
         else:
@@ -2379,6 +2442,7 @@ class Emitter:
 
     def vshufps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, imm: list[int]) -> None:
         self.require_text_section('vshufps')
+        require_avx()
         if len(imm) != 4 or any(value < 0 or value > 3 for value in imm):
             raise EmitterError('vshufps: imm must contain four integers between 0 and 3')
         imm8 = sum(value << (2 * i) for i, value in enumerate(imm))
@@ -2392,6 +2456,7 @@ class Emitter:
 
     def vpermilps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T | list[int]) -> None:
         self.require_text_section('vpermilps')
+        require_avx()
         if isinstance(src2, list):
             if len(src2) != 4 or any(value < 0 or value > 3 for value in src2):
                 raise EmitterError('vpermilps: imm must contain four integers between 0 and 3')
@@ -2399,6 +2464,20 @@ class Emitter:
             self.emit_bytes(encode_vex(dst, None, src1, 0x04, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
         else:
             self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+
+    # zero_mask: 1 zeros the corresponding element; 0 keeps its value after insertion.
+    def vinsertps(self, dst: Xmm, src1: Xmm, src2: Xmm, count_dst: int, count_src: int, zero_mask: list[int]) -> None:
+        self.require_text_section('vinsertps')
+        require_avx()
+        if count_dst < 0 or count_dst > 3:
+            raise EmitterError('vinsertps: count_dst must be between 0 and 3')
+        if count_src < 0 or count_src > 3:
+            raise EmitterError('vinsertps: count_src must be between 0 and 3')
+        if len(zero_mask) != 4 or any(value not in (0, 1) for value in zero_mask):
+            raise EmitterError('vinsertps: zero_mask must contain four integers, each 0 or 1')
+        imm8 = (count_src << 6) | (count_dst << 4)
+        imm8 |= sum(value << i for i, value in enumerate(zero_mask))
+        self.emit_bytes(encode_vex(dst, src1, src2, 0x21, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
 def init_cpu_features() -> None:
     global cpu_features
