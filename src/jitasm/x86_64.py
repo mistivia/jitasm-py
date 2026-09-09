@@ -154,13 +154,13 @@ class Reg:
         self.name = name
         self.size = size
 
-    def __mul__(self, scale) -> Sib:
+    def __mul__(self, scale):
         assert type(scale) is int
         if self.name == RegName.RIP:
             raise EmitterError('rip can only be added to a label')
         return Sib(index=self, scale=scale)
 
-    def __rmul__(self, scale) -> Sib:
+    def __rmul__(self, scale):
         assert type(scale) is int
         return self * scale
 
@@ -646,7 +646,7 @@ class MemMap:
         self.ptr = ptr
         self.size = size
 
-def close_mem_map(mapping: MemMap) -> None:
+def close_mem_map(mapping: MemMap):
     unmap(mapping.ptr, mapping.size)
 
 class EncodedRegMemOp:
@@ -750,7 +750,7 @@ class Emitter:
     def add_label_ref(self, name: str, pos: int, delta: RipDelta | LabelDelta):
         self.label_refs.setdefault(name, []).append(LabelRef(pos, delta))
 
-    def symbol(self, s: str) -> int:
+    def symbol(self, s: str):
         if self.symbols is None or s not in self.symbols:
             raise EmitterError('symbol not found')
         result = self.symbols[s]
@@ -763,11 +763,11 @@ class Emitter:
         if self.section == Section.DATA:
             self.data.extend(b)
 
-    def require_text_section(self, name: str) -> None:
+    def require_text_section(self, name: str):
         if self.section == Section.DATA:
             raise EmitterError(f'{name}: cannot emit code at data section')
 
-    def finalize(self) -> None:
+    def finalize(self):
         page_size = get_page_size()
         text_size = max(page_size, (len(self.text) + page_size - 1) // page_size * page_size)
         data_size = max(page_size, (len(self.data) + page_size - 1) // page_size * page_size)
@@ -842,12 +842,12 @@ class Emitter:
                 symbols[name] = base_address + offset
         self.symbols = symbols
     
-    def unmap(self) -> None:
+    def unmap(self):
         if self.mapping is not None:
             close_mem_map(self.mapping)
             self.mapping = None
 
-    def align(self, bytes: int) -> None:
+    def align(self, bytes: int):
         if self.section != Section.DATA:
             raise EmitterError('align: must be emitted at data section')
         if bytes <= 0:
@@ -855,7 +855,7 @@ class Emitter:
         padding = -len(self.data) % bytes
         self.emit_bytes(b'\x00' * padding)
 
-    def db(self, *values: int) -> None:
+    def db(self, *values: int):
         if self.section != Section.DATA:
             raise EmitterError('db: must be emitted at data section')
         for value in values:
@@ -863,7 +863,7 @@ class Emitter:
                 raise EmitterError('db: value must fit in 8 bits')
             self.emit_bytes(bytes((value & 0xFF,)))
 
-    def dw(self, *values: int) -> None:
+    def dw(self, *values: int):
         if self.section != Section.DATA:
             raise EmitterError('dw: must be emitted at data section')
         for value in values:
@@ -871,7 +871,7 @@ class Emitter:
                 raise EmitterError('dw: value must fit in 16 bits')
             self.emit_bytes((value & 0xFFFF).to_bytes(2, 'little'))
 
-    def dd(self, *values: int | float | tuple[str, str]) -> None:
+    def dd(self, *values: int | float | tuple[str, str]):
         if self.section != Section.DATA:
             raise EmitterError('dd: must be emitted at data section')
         for value in values:
@@ -891,7 +891,7 @@ class Emitter:
                 raise EmitterError('dd: value must fit in 32 bits')
             self.emit_bytes((value & 0xFFFFFFFF).to_bytes(4, 'little'))
 
-    def dq(self, *values: int | float) -> None:
+    def dq(self, *values: int | float):
         if self.section != Section.DATA:
             raise EmitterError('dq: must be emitted at data section')
         for value in values:
@@ -902,7 +902,7 @@ class Emitter:
                 raise EmitterError('dq: value must fit in 64 bits')
             self.emit_bytes((value & 0xFFFFFFFFFFFFFFFF).to_bytes(8, 'little'))
 
-    def ascii(self, value: str) -> None:
+    def ascii(self, value: str):
         if self.section != Section.DATA:
             raise EmitterError('ascii: must be emitted at data section')
         try:
@@ -911,7 +911,7 @@ class Emitter:
             raise EmitterError('ascii: value must contain only ASCII characters') from None
         self.emit_bytes(encoded)
 
-    def asciz(self, value: str) -> None:
+    def asciz(self, value: str):
         if self.section != Section.DATA:
             raise EmitterError('asciz: must be emitted at data section')
         try:
@@ -920,7 +920,7 @@ class Emitter:
             raise EmitterError('asciz: value must contain only ASCII characters') from None
         self.emit_bytes(encoded + b'\x00')
 
-    def label(self, name: str) -> None:
+    def label(self, name: str):
         if name in self.labels:
             raise EmitterError('label already defined')
         if self.section == Section.TEXT:
@@ -933,7 +933,7 @@ class Emitter:
     def set_section(self, s: Section):
         self.section = s
 
-    def section_offset(self) -> int:
+    def section_offset(self):
         if self.section == Section.TEXT:
             return len(self.text)
         return len(self.data)
@@ -945,7 +945,7 @@ class Emitter:
         opcode: bytes,
         rex_w: bool,
         legacy_prefix: bytes = b'',
-    ) -> None:
+    ):
         reg_index = reg_id(reg)
         if rex_w:
             rex = 0x48
@@ -965,7 +965,7 @@ class Emitter:
             disp_pos = instruction_start + len(legacy_prefix) + len(rex_prefix) + len(opcode) + 1
             self.add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
-    def emit_mov_mem(self, op1, op2) -> None:
+    def emit_mov_mem(self, op1, op2):
         match (op1, op2):
             case (Reg() as reg, Mem() as mem):
                 opcode = b'\x8b'
@@ -1109,7 +1109,7 @@ class Emitter:
             case _:
                 raise EmitterError('lea: invalid form')
 
-    def emit_cmov(self, opcode: int, op1: Reg, op2: Reg) -> None:
+    def emit_cmov(self, opcode: int, op1: Reg, op2: Reg):
         assert type(opcode) is int
         assert type(op1) is Reg
         assert type(op2) is Reg
@@ -1202,7 +1202,7 @@ class Emitter:
             disp_pos = instruction_start + len(prefix) + len(rex_prefix) + 3
             self.add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
-    def emit_mov_scalar(self, op1: Operand, op2: Operand, size: WordSize, prefix: bytes, name: str) -> None:
+    def emit_mov_scalar(self, op1: Operand, op2: Operand, size: WordSize, prefix: bytes, name: str):
         self.require_text_section(name)
         match (op1, op2):
             case (Xmm() as dst, Xmm() as src):
@@ -1226,17 +1226,15 @@ class Emitter:
             case _:
                 raise EmitterError(f'{name}: invalid form')
 
-    def movss_sse(self, op1: Operand, op2: Operand) -> None:
+    def movss_sse(self, op1, op2):
+        assert type(op1) in [Xmm, Mem]
+        assert type(op2) in [Xmm, Mem]
         self.emit_mov_scalar(op1, op2, DWORD, b'\xf3', 'movss')
 
-    def emit_mov_scalar_avx(
-        self,
-        op1: Operand,
-        op2: Operand,
-        size: WordSize,
-        pp: VexPP,
-        name: str,
-    ) -> None:
+    def emit_mov_scalar_avx(self, op1, op2, size, pp, name):
+        assert type(size) is WordSize
+        assert type(pp) is VexPP
+        assert type(name) is str
         self.require_text_section(name)
         match (op1, op2):
             case (Xmm() as dst, Xmm() as src):
@@ -1266,18 +1264,24 @@ class Emitter:
             case _:
                 raise EmitterError(f'{name}: invalid form')
 
-    def movss_avx(self, op1: Operand, op2: Operand) -> None:
+    def movss_avx(self, op1, op2):
+        assert type(op1) in [Xmm, Mem]
+        assert type(op2) in [Xmm, Mem]
         require_avx()
         self.emit_mov_scalar_avx(op1, op2, DWORD, VexPP.PF3, 'movss')
 
-    def movsd_sse(self, op1: Operand, op2: Operand) -> None:
+    def movsd_sse(self, op1, op2):
+        assert type(op1) in [Xmm, Mem]
+        assert type(op2) in [Xmm, Mem]
         self.emit_mov_scalar(op1, op2, QWORD, b'\xf2', 'movsd')
 
-    def movsd_avx(self, op1: Operand, op2: Operand) -> None:
+    def movsd_avx(self, op1: Operand, op2: Operand):
+        assert type(op1) in [Xmm, Mem]
+        assert type(op2) in [Xmm, Mem]
         require_avx()
         self.emit_mov_scalar_avx(op1, op2, QWORD, VexPP.PF2, 'movsd')
 
-    def emit_scalar_arith(self, op1: Xmm, op2: Xmm, opcode: int, prefix: bytes, name: str) -> None:
+    def emit_scalar_arith(self, op1: Xmm, op2: Xmm, opcode: int, prefix: bytes, name: str):
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError(f'{name}: invalid xmm register')
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
@@ -1288,135 +1292,167 @@ class Emitter:
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (op2.id & 7)
         self.emit_bytes(prefix + rex_prefix + bytes((0x0F, opcode, mod_rm)))
 
-    def addss_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def addss_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         self.require_text_section('addss')
         self.emit_scalar_arith(op1, op2, 0x58, b'\xf3', 'addss')
 
-    def subss_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def subss_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         self.require_text_section('subss')
         self.emit_scalar_arith(op1, op2, 0x5C, b'\xf3', 'subss')
 
-    def mulss_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def mulss_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         self.require_text_section('mulss')
         self.emit_scalar_arith(op1, op2, 0x59, b'\xf3', 'mulss')
 
-    def divss_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def divss_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         self.require_text_section('divss')
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf3', 'divss')
 
-    def addsd_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def addsd_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         self.require_text_section('addsd')
         self.emit_scalar_arith(op1, op2, 0x58, b'\xf2', 'addsd')
 
-    def subsd_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def subsd_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         self.require_text_section('subsd')
         self.emit_scalar_arith(op1, op2, 0x5C, b'\xf2', 'subsd')
 
-    def mulsd_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def mulsd_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         self.require_text_section('mulsd')
         self.emit_scalar_arith(op1, op2, 0x59, b'\xf2', 'mulsd')
 
-    def divsd_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def divsd_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         self.require_text_section('divsd')
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf2', 'divsd')
 
-    def emit_scalar_arith_avx(self, op1: Xmm, op2: Xmm, opcode: int, pp: VexPP, name: str) -> None:
+    def emit_scalar_arith_avx(self, op1: Xmm, op2: Xmm, opcode: int, pp: VexPP, name: str):
         self.require_text_section(name)
         self.emit_bytes(encode_vex(op1, op1, op2, opcode, VexMap.MAP_0F, pp, VexW.W0))
 
-    def addss_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def addss_avx(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF3, 'addss')
 
-    def subss_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def subss_avx(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF3, 'subss')
 
-    def mulss_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def mulss_avx(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF3, 'mulss')
 
-    def divss_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def divss_avx(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF3, 'divss')
 
-    def addsd_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def addsd_avx(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF2, 'addsd')
 
-    def subsd_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def subsd_avx(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF2, 'subsd')
 
-    def mulsd_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def mulsd_avx(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF2, 'mulsd')
 
-    def divsd_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def divsd_avx(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF2, 'divsd')
 
-    def movss(self, op1: Operand, op2: Operand) -> None:
+    def movss(self, op1: Operand, op2: Operand):
         if cpu_features.avx:
             self.movss_avx(op1, op2)
         else:
             self.movss_sse(op1, op2)
 
-    def addss(self, op1: Xmm, op2: Xmm) -> None:
+    def addss(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.addss_avx(op1, op2)
         else:
             self.addss_sse(op1, op2)
 
-    def subss(self, op1: Xmm, op2: Xmm) -> None:
+    def subss(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.subss_avx(op1, op2)
         else:
             self.subss_sse(op1, op2)
 
-    def mulss(self, op1: Xmm, op2: Xmm) -> None:
+    def mulss(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.mulss_avx(op1, op2)
         else:
             self.mulss_sse(op1, op2)
 
-    def divss(self, op1: Xmm, op2: Xmm) -> None:
+    def divss(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.divss_avx(op1, op2)
         else:
             self.divss_sse(op1, op2)
 
-    def movsd(self, op1: Operand, op2: Operand) -> None:
+    def movsd(self, op1: Operand, op2: Operand):
         if cpu_features.avx:
             self.movsd_avx(op1, op2)
         else:
             self.movsd_sse(op1, op2)
 
-    def addsd(self, op1: Xmm, op2: Xmm) -> None:
+    def addsd(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.addsd_avx(op1, op2)
         else:
             self.addsd_sse(op1, op2)
 
-    def subsd(self, op1: Xmm, op2: Xmm) -> None:
+    def subsd(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.subsd_avx(op1, op2)
         else:
             self.subsd_sse(op1, op2)
 
-    def mulsd(self, op1: Xmm, op2: Xmm) -> None:
+    def mulsd(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.mulsd_avx(op1, op2)
         else:
             self.mulsd_sse(op1, op2)
 
-    def divsd(self, op1: Xmm, op2: Xmm) -> None:
+    def divsd(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.divsd_avx(op1, op2)
         else:
             self.divsd_sse(op1, op2)
 
-    def emit_cvtsi2s(self, op1: Xmm, op2: Reg, prefix: bytes, name: str) -> None:
+    def emit_cvtsi2s(self, op1: Xmm, op2: Reg, prefix: bytes, name: str):
         self.require_text_section(name)
         if op1.id < 0 or op1.id > 15:
             raise EmitterError(f'{name}: invalid xmm register')
@@ -1427,19 +1463,19 @@ class Emitter:
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (src & 7)
         self.emit_bytes(prefix + bytes((rex, 0x0F, 0x2A, mod_rm)))
 
-    def cvtsi2ss_sse(self, op1: Xmm, op2: Reg) -> None:
+    def cvtsi2ss_sse(self, op1: Xmm, op2: Reg):
         self.emit_cvtsi2s(op1, op2, b'\xf3', 'cvtsi2ss')
 
-    def cvtsi2sd_sse(self, op1: Xmm, op2: Reg) -> None:
+    def cvtsi2sd_sse(self, op1: Xmm, op2: Reg):
         self.emit_cvtsi2s(op1, op2, b'\xf2', 'cvtsi2sd')
 
-    def cvtsi2ss(self, op1: Xmm, op2: Reg) -> None:
+    def cvtsi2ss(self, op1: Xmm, op2: Reg):
         self.cvtsi2ss_sse(op1, op2)
 
-    def cvtsi2sd(self, op1: Xmm, op2: Reg) -> None:
+    def cvtsi2sd(self, op1: Xmm, op2: Reg):
         self.cvtsi2sd_sse(op1, op2)
 
-    def emit_cvtts2si(self, op1: Reg, op2: Xmm, prefix: bytes, name: str) -> None:
+    def emit_cvtts2si(self, op1: Reg, op2: Xmm, prefix: bytes, name: str):
         self.require_text_section(name)
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError(f'{name}: destination must be a qword register')
@@ -1450,19 +1486,19 @@ class Emitter:
         mod_rm = 0xC0 | ((dst & 7) << 3) | (op2.id & 7)
         self.emit_bytes(prefix + bytes((rex, 0x0F, 0x2C, mod_rm)))
 
-    def cvttss2si_sse(self, op1: Reg, op2: Xmm) -> None:
+    def cvttss2si_sse(self, op1: Reg, op2: Xmm):
         self.emit_cvtts2si(op1, op2, b'\xf3', 'cvttss2si')
 
-    def cvttsd2si_sse(self, op1: Reg, op2: Xmm) -> None:
+    def cvttsd2si_sse(self, op1: Reg, op2: Xmm):
         self.emit_cvtts2si(op1, op2, b'\xf2', 'cvttsd2si')
 
-    def cvttss2si(self, op1: Reg, op2: Xmm) -> None:
+    def cvttss2si(self, op1: Reg, op2: Xmm):
         self.cvttss2si_sse(op1, op2)
 
-    def cvttsd2si(self, op1: Reg, op2: Xmm) -> None:
+    def cvttsd2si(self, op1: Reg, op2: Xmm):
         self.cvttsd2si_sse(op1, op2)
 
-    def emit_round_scalar(self, op1: Xmm, op2: Xmm, mode: int, opcode: int, name: str) -> None:
+    def emit_round_scalar(self, op1: Xmm, op2: Xmm, mode: int, opcode: int, name: str):
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError(f'{name}: invalid xmm register')
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
@@ -1475,35 +1511,35 @@ class Emitter:
             b'\x66' + rex_prefix + bytes((0x0F, 0x3A, opcode, mod_rm, mode))
         )
 
-    def rounds_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def rounds_sse(self, op1: Xmm, op2: Xmm):
         self.require_text_section('rounds')
         self.emit_round_scalar(op1, op2, 0, 0x0A, 'rounds')
 
-    def floors_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def floors_sse(self, op1: Xmm, op2: Xmm):
         self.require_text_section('floors')
         self.emit_round_scalar(op1, op2, 1, 0x0A, 'floors')
 
-    def ceils_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def ceils_sse(self, op1: Xmm, op2: Xmm):
         self.require_text_section('ceils')
         self.emit_round_scalar(op1, op2, 2, 0x0A, 'ceils')
 
-    def truncs_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def truncs_sse(self, op1: Xmm, op2: Xmm):
         self.require_text_section('truncs')
         self.emit_round_scalar(op1, op2, 3, 0x0A, 'truncs')
 
-    def roundd_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def roundd_sse(self, op1: Xmm, op2: Xmm):
         self.require_text_section('roundd')
         self.emit_round_scalar(op1, op2, 0, 0x0B, 'roundd')
 
-    def floord_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def floord_sse(self, op1: Xmm, op2: Xmm):
         self.require_text_section('floord')
         self.emit_round_scalar(op1, op2, 1, 0x0B, 'floord')
 
-    def ceild_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def ceild_sse(self, op1: Xmm, op2: Xmm):
         self.require_text_section('ceild')
         self.emit_round_scalar(op1, op2, 2, 0x0B, 'ceild')
 
-    def truncd_sse(self, op1: Xmm, op2: Xmm) -> None:
+    def truncd_sse(self, op1: Xmm, op2: Xmm):
         self.require_text_section('truncd')
         self.emit_round_scalar(op1, op2, 3, 0x0B, 'truncd')
 
@@ -1514,87 +1550,87 @@ class Emitter:
         mode: int,
         opcode: int,
         name: str,
-    ) -> None:
+    ):
         self.require_text_section(name)
         self.emit_bytes(encode_vex(
             op1, op1, op2, opcode, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, mode,
         ))
 
-    def rounds_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def rounds_avx(self, op1: Xmm, op2: Xmm):
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 0, 0x0A, 'rounds')
 
-    def floors_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def floors_avx(self, op1: Xmm, op2: Xmm):
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 1, 0x0A, 'floors')
 
-    def ceils_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def ceils_avx(self, op1: Xmm, op2: Xmm):
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 2, 0x0A, 'ceils')
 
-    def truncs_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def truncs_avx(self, op1: Xmm, op2: Xmm):
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 3, 0x0A, 'truncs')
 
-    def roundd_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def roundd_avx(self, op1: Xmm, op2: Xmm):
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 0, 0x0B, 'roundd')
 
-    def floord_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def floord_avx(self, op1: Xmm, op2: Xmm):
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 1, 0x0B, 'floord')
 
-    def ceild_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def ceild_avx(self, op1: Xmm, op2: Xmm):
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 2, 0x0B, 'ceild')
 
-    def truncd_avx(self, op1: Xmm, op2: Xmm) -> None:
+    def truncd_avx(self, op1: Xmm, op2: Xmm):
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 3, 0x0B, 'truncd')
 
-    def rounds(self, op1: Xmm, op2: Xmm) -> None:
+    def rounds(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.rounds_avx(op1, op2)
         else:
             self.rounds_sse(op1, op2)
 
-    def floors(self, op1: Xmm, op2: Xmm) -> None:
+    def floors(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.floors_avx(op1, op2)
         else:
             self.floors_sse(op1, op2)
 
-    def ceils(self, op1: Xmm, op2: Xmm) -> None:
+    def ceils(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.ceils_avx(op1, op2)
         else:
             self.ceils_sse(op1, op2)
 
-    def truncs(self, op1: Xmm, op2: Xmm) -> None:
+    def truncs(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.truncs_avx(op1, op2)
         else:
             self.truncs_sse(op1, op2)
 
-    def roundd(self, op1: Xmm, op2: Xmm) -> None:
+    def roundd(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.roundd_avx(op1, op2)
         else:
             self.roundd_sse(op1, op2)
 
-    def floord(self, op1: Xmm, op2: Xmm) -> None:
+    def floord(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.floord_avx(op1, op2)
         else:
             self.floord_sse(op1, op2)
 
-    def ceild(self, op1: Xmm, op2: Xmm) -> None:
+    def ceild(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.ceild_avx(op1, op2)
         else:
             self.ceild_sse(op1, op2)
 
-    def truncd(self, op1: Xmm, op2: Xmm) -> None:
+    def truncd(self, op1: Xmm, op2: Xmm):
         if cpu_features.avx:
             self.truncd_avx(op1, op2)
         else:
@@ -1606,7 +1642,7 @@ class Emitter:
         op2: Reg | int,
         opcode: int,
         imm_id: int,
-    ) -> None:
+    ):
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('binary op: first operand must be a qword register')
         dst = reg_id(op1)
@@ -1628,31 +1664,31 @@ class Emitter:
             case _:
                 assert_never(op2)
 
-    def add(self, op1: Reg, op2: Reg | int) -> None:
+    def add(self, op1: Reg, op2: Reg | int):
         self.require_text_section('add')
         self.emit_binary_op(op1, op2, 0x01, 0)
 
-    def sub(self, op1: Reg, op2: Reg | int) -> None:
+    def sub(self, op1: Reg, op2: Reg | int):
         self.require_text_section('sub')
         self.emit_binary_op(op1, op2, 0x29, 5)
 
-    def bitand(self, op1: Reg, op2: Reg | int) -> None:
+    def bitand(self, op1: Reg, op2: Reg | int):
         self.require_text_section('bitand')
         self.emit_binary_op(op1, op2, 0x21, 4)
 
-    def bitor(self, op1: Reg, op2: Reg | int) -> None:
+    def bitor(self, op1: Reg, op2: Reg | int):
         self.require_text_section('bitor')
         self.emit_binary_op(op1, op2, 0x09, 1)
 
-    def xor(self, op1: Reg, op2: Reg | int) -> None:
+    def xor(self, op1: Reg, op2: Reg | int):
         self.require_text_section('xor')
         self.emit_binary_op(op1, op2, 0x31, 6)
 
-    def bitnot(self, op: Reg) -> None:
+    def bitnot(self, op: Reg):
         self.require_text_section('bitnot')
         self.xor(op, -1)
 
-    def neg(self, op: Reg) -> None:
+    def neg(self, op: Reg):
         self.require_text_section('neg')
         if op == RIP or op.size != QWORD:
             raise EmitterError('neg: operand must be a qword register')
@@ -1661,7 +1697,7 @@ class Emitter:
         mod_rm = 0xD8 | (dst & 7)
         self.emit_bytes(bytes((rex, 0xF7, mod_rm)))
 
-    def imul(self, op1: Reg, op2: Reg | int) -> None:
+    def imul(self, op1: Reg, op2: Reg | int):
         self.require_text_section('imul')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('imul: first operand must be a qword register')
@@ -1684,14 +1720,14 @@ class Emitter:
             case _:
                 assert_never(op2)
 
-    def emit_xchg(self, op1: Reg, op2: Reg) -> None:
+    def emit_xchg(self, op1: Reg, op2: Reg):
         dst = reg_id(op1)
         src = reg_id(op2)
         rex = 0x48 | ((src >> 3) << 2) | (dst >> 3)
         mod_rm = 0xC0 | ((src & 7) << 3) | (dst & 7)
         self.emit_bytes(bytes((rex, 0x87, mod_rm)))
 
-    def emit_div(self, op1: Reg, op2: Reg, signed: bool) -> None:
+    def emit_div(self, op1: Reg, op2: Reg, signed: bool):
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('div: first operand must be a qword register')
         if op2 == RIP or op2.size != QWORD:
@@ -1742,11 +1778,11 @@ class Emitter:
         self.require_text_section('idiv')
         self.emit_div(op1, op2, True)
 
-    def div(self, op1: Reg, op2: Reg) -> None:
+    def div(self, op1: Reg, op2: Reg):
         self.require_text_section('div')
         self.emit_div(op1, op2, False)
 
-    def emit_shift(self, op1: Reg, op2: Reg | int, imm_id: int) -> None:
+    def emit_shift(self, op1: Reg, op2: Reg | int, imm_id: int):
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('shift: first operand must be a qword register')
         dst = reg_id(op1)
@@ -1765,27 +1801,27 @@ class Emitter:
             case _:
                 assert_never(op2)
 
-    def shl(self, op1: Reg, op2: Reg | int) -> None:
+    def shl(self, op1: Reg, op2: Reg | int):
         self.require_text_section('shl')
         self.emit_shift(op1, op2, 4)
 
-    def sar(self, op1: Reg, op2: Reg | int) -> None:
+    def sar(self, op1: Reg, op2: Reg | int):
         self.require_text_section('sar')
         self.emit_shift(op1, op2, 7)
 
-    def shr(self, op1: Reg, op2: Reg | int) -> None:
+    def shr(self, op1: Reg, op2: Reg | int):
         self.require_text_section('shr')
         self.emit_shift(op1, op2, 5)
 
-    def ror(self, op1: Reg, op2: Reg | int) -> None:
+    def ror(self, op1: Reg, op2: Reg | int):
         self.require_text_section('ror')
         self.emit_shift(op1, op2, 1)
 
-    def rol(self, op1: Reg, op2: Reg | int) -> None:
+    def rol(self, op1: Reg, op2: Reg | int):
         self.require_text_section('rol')
         self.emit_shift(op1, op2, 0)
 
-    def push(self, r: Reg) -> None:
+    def push(self, r: Reg):
         self.require_text_section('push')
         if r == RIP or r.size != QWORD:
             raise EmitterError('push: operand must be a qword register')
@@ -1796,7 +1832,7 @@ class Emitter:
         self.sub(RSP, 8)
         self.mov(qword_ptr(RSP), r)
 
-    def pop(self, r: Reg) -> None:
+    def pop(self, r: Reg):
         self.require_text_section('pop')
         if r == RIP or r.size != QWORD:
             raise EmitterError('pop: operand must be a qword register')
@@ -1807,16 +1843,16 @@ class Emitter:
         self.mov(r, qword_ptr(RSP))
         self.add(RSP, 8)
 
-    def begin(self) -> None:
+    def begin(self):
         self.push(RBP)
         self.mov(RBP, RSP)
 
-    def end(self) -> None:
+    def end(self):
         self.mov(RSP, RBP)
         self.pop(RBP)
         self.ret()
 
-    def call(self, target: str | Reg) -> None:
+    def call(self, target: str | Reg):
         self.require_text_section('call')
         match target:
             case str() as label:
@@ -1836,7 +1872,7 @@ class Emitter:
             case _:
                 assert_never(target)
 
-    def jmp(self, target: str | Reg) -> None:
+    def jmp(self, target: str | Reg):
         self.require_text_section('jmp')
         match target:
             case str() as label:
@@ -1856,7 +1892,7 @@ class Emitter:
             case _:
                 assert_never(target)
 
-    def cmp(self, op1: Reg, op2: Reg | int) -> None:
+    def cmp(self, op1: Reg, op2: Reg | int):
         self.require_text_section('cmp')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('cmp: first operand must be a qword register')
@@ -1880,7 +1916,7 @@ class Emitter:
             case _:
                 assert_never(op2)
 
-    def emit_ucomis(self, x1: Xmm, x2: Xmm, prefix: bytes, name: str) -> None:
+    def emit_ucomis(self, x1: Xmm, x2: Xmm, prefix: bytes, name: str):
         self.require_text_section(name)
         if x1.id < 0 or x1.id > 15 or x2.id < 0 or x2.id > 15:
             raise EmitterError(f'{name}: invalid xmm register')
@@ -1892,154 +1928,154 @@ class Emitter:
         mod_rm = 0xC0 | ((x1.id & 7) << 3) | (x2.id & 7)
         self.emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x2E, mod_rm)))
 
-    def ucomiss_sse(self, x1: Xmm, x2: Xmm) -> None:
+    def ucomiss_sse(self, x1: Xmm, x2: Xmm):
         self.emit_ucomis(x1, x2, b'', 'ucomiss')
 
-    def ucomisd_sse(self, x1: Xmm, x2: Xmm) -> None:
+    def ucomisd_sse(self, x1: Xmm, x2: Xmm):
         self.emit_ucomis(x1, x2, b'\x66', 'ucomisd')
 
-    def emit_ucomis_avx(self, x1: Xmm, x2: Xmm, pp: VexPP, name: str) -> None:
+    def emit_ucomis_avx(self, x1: Xmm, x2: Xmm, pp: VexPP, name: str):
         self.require_text_section(name)
         self.emit_bytes(encode_vex(x1, None, x2, 0x2E, VexMap.MAP_0F, pp, VexW.W0))
 
-    def ucomiss_avx(self, x1: Xmm, x2: Xmm) -> None:
+    def ucomiss_avx(self, x1: Xmm, x2: Xmm):
         require_avx()
         self.emit_ucomis_avx(x1, x2, VexPP.NONE, 'ucomiss')
 
-    def ucomisd_avx(self, x1: Xmm, x2: Xmm) -> None:
+    def ucomisd_avx(self, x1: Xmm, x2: Xmm):
         require_avx()
         self.emit_ucomis_avx(x1, x2, VexPP.P66, 'ucomisd')
 
-    def ucomiss(self, x1: Xmm, x2: Xmm) -> None:
+    def ucomiss(self, x1: Xmm, x2: Xmm):
         if cpu_features.avx:
             self.ucomiss_avx(x1, x2)
         else:
             self.ucomiss_sse(x1, x2)
 
-    def ucomisd(self, x1: Xmm, x2: Xmm) -> None:
+    def ucomisd(self, x1: Xmm, x2: Xmm):
         if cpu_features.avx:
             self.ucomisd_avx(x1, x2)
         else:
             self.ucomisd_sse(x1, x2)
 
-    def jcc(self, cond: CondCode, label: str) -> None:
+    def jcc(self, cond: CondCode, label: str):
         self.require_text_section('jcc')
         instruction_start = self.section_offset()
         self.emit_bytes(bytes((0x0F, 0x80 | COND_CODE_IDS[cond])) + b'\x00\x00\x00\x00')
         self.add_label_ref(label, instruction_start + 2, RipDelta(len(self.text)))
 
-    def ja(self, label: str) -> None:
+    def ja(self, label: str):
         self.jcc(GTU, label)
 
-    def jae(self, label: str) -> None:
+    def jae(self, label: str):
         self.jcc(GEU, label)
 
-    def jb(self, label: str) -> None:
+    def jb(self, label: str):
         self.jcc(LTU, label)
 
-    def jbe(self, label: str) -> None:
+    def jbe(self, label: str):
         self.jcc(LEU, label)
 
-    def jc(self, label: str) -> None:
+    def jc(self, label: str):
         self.jcc(LTU, label)
 
-    def jnc(self, label: str) -> None:
+    def jnc(self, label: str):
         self.jcc(GEU, label)
 
-    def je(self, label: str) -> None:
+    def je(self, label: str):
         self.jcc(EQ, label)
 
-    def jne(self, label: str) -> None:
+    def jne(self, label: str):
         self.jcc(NE, label)
 
-    def jz(self, label: str) -> None:
+    def jz(self, label: str):
         self.jcc(EQ, label)
 
-    def jnz(self, label: str) -> None:
+    def jnz(self, label: str):
         self.jcc(NE, label)
 
-    def jg(self, label: str) -> None:
+    def jg(self, label: str):
         self.jcc(GT, label)
 
-    def jge(self, label: str) -> None:
+    def jge(self, label: str):
         self.jcc(GE, label)
 
-    def jl(self, label: str) -> None:
+    def jl(self, label: str):
         self.jcc(LT, label)
 
-    def jle(self, label: str) -> None:
+    def jle(self, label: str):
         self.jcc(LE, label)
 
-    def jna(self, label: str) -> None:
+    def jna(self, label: str):
         self.jcc(LEU, label)
 
-    def jnae(self, label: str) -> None:
+    def jnae(self, label: str):
         self.jcc(LTU, label)
 
-    def jnb(self, label: str) -> None:
+    def jnb(self, label: str):
         self.jcc(GEU, label)
 
-    def jnbe(self, label: str) -> None:
+    def jnbe(self, label: str):
         self.jcc(GTU, label)
 
-    def jng(self, label: str) -> None:
+    def jng(self, label: str):
         self.jcc(LE, label)
 
-    def jnge(self, label: str) -> None:
+    def jnge(self, label: str):
         self.jcc(LT, label)
 
-    def jnl(self, label: str) -> None:
+    def jnl(self, label: str):
         self.jcc(GE, label)
 
-    def jnle(self, label: str) -> None:
+    def jnle(self, label: str):
         self.jcc(GT, label)
 
-    def jo(self, label: str) -> None:
+    def jo(self, label: str):
         self.jcc(O, label)
 
-    def jno(self, label: str) -> None:
+    def jno(self, label: str):
         self.jcc(NO, label)
 
-    def js(self, label: str) -> None:
+    def js(self, label: str):
         self.jcc(S, label)
 
-    def jns(self, label: str) -> None:
+    def jns(self, label: str):
         self.jcc(NS, label)
 
-    def jp(self, label: str) -> None:
+    def jp(self, label: str):
         self.jcc(P, label)
 
-    def jpe(self, label: str) -> None:
+    def jpe(self, label: str):
         self.jcc(P, label)
 
-    def jnp(self, label: str) -> None:
+    def jnp(self, label: str):
         self.jcc(NP, label)
 
-    def jpo(self, label: str) -> None:
+    def jpo(self, label: str):
         self.jcc(NP, label)
 
-    def jeq(self, label: str) -> None:
+    def jeq(self, label: str):
         self.jcc(EQ, label)
 
-    def jgt(self, label: str) -> None:
+    def jgt(self, label: str):
         self.jcc(GT, label)
 
-    def jlt(self, label: str) -> None:
+    def jlt(self, label: str):
         self.jcc(LT, label)
 
-    def jgtu(self, label: str) -> None:
+    def jgtu(self, label: str):
         self.jcc(GTU, label)
 
-    def jgeu(self, label: str) -> None:
+    def jgeu(self, label: str):
         self.jcc(GEU, label)
 
-    def jltu(self, label: str) -> None:
+    def jltu(self, label: str):
         self.jcc(LTU, label)
 
-    def jleu(self, label: str) -> None:
+    def jleu(self, label: str):
         self.jcc(LEU, label)
 
-    def setcc(self, cond: CondCode, r: Reg) -> None:
+    def setcc(self, cond: CondCode, r: Reg):
         self.require_text_section('setcc')
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('setcc: destination must be a byte register')
@@ -2052,177 +2088,177 @@ class Emitter:
         mod_rm = 0xC0 | (dst & 7)
         self.emit_bytes(rex_prefix + bytes((0x0F, 0x90 | COND_CODE_IDS[cond], mod_rm)))
 
-    def branch(self, cond: CondCode, op1: Reg, op2: Reg | int, label: str) -> None:
+    def branch(self, cond: CondCode, op1: Reg, op2: Reg | int, label: str):
         self.cmp(op1, op2)
         self.jcc(cond, label)
 
-    def branchs(self, cond: CondCode, op1: Xmm, op2: Xmm, label: str) -> None:
+    def branchs(self, cond: CondCode, op1: Xmm, op2: Xmm, label: str):
         cond = xmm_cond_code(cond)
         self.ucomiss(op1, op2)
         self.jcc(cond, label)
 
-    def branchd(self, cond: CondCode, op1: Xmm, op2: Xmm, label: str) -> None:
+    def branchd(self, cond: CondCode, op1: Xmm, op2: Xmm, label: str):
         cond = xmm_cond_code(cond)
         self.ucomisd(op1, op2)
         self.jcc(cond, label)
 
-    def beq(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def beq(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(EQ, op1, op2, label)
 
-    def bne(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def bne(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(NE, op1, op2, label)
 
-    def bgt(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def bgt(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(GT, op1, op2, label)
 
-    def blt(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def blt(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(LT, op1, op2, label)
 
-    def bge(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def bge(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(GE, op1, op2, label)
 
-    def ble(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def ble(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(LE, op1, op2, label)
 
-    def beqs(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def beqs(self, op1: Xmm, op2: Xmm, label: str):
         self.branchs(EQ, op1, op2, label)
 
-    def beqd(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def beqd(self, op1: Xmm, op2: Xmm, label: str):
         self.branchd(EQ, op1, op2, label)
 
-    def bnes(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bnes(self, op1: Xmm, op2: Xmm, label: str):
         self.branchs(NE, op1, op2, label)
 
-    def bned(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bned(self, op1: Xmm, op2: Xmm, label: str):
         self.branchd(NE, op1, op2, label)
 
-    def bgts(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bgts(self, op1: Xmm, op2: Xmm, label: str):
         self.branchs(GT, op1, op2, label)
 
-    def bgtd(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bgtd(self, op1: Xmm, op2: Xmm, label: str):
         self.branchd(GT, op1, op2, label)
 
-    def blts(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def blts(self, op1: Xmm, op2: Xmm, label: str):
         self.branchs(LT, op1, op2, label)
 
-    def bltd(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bltd(self, op1: Xmm, op2: Xmm, label: str):
         self.branchd(LT, op1, op2, label)
 
-    def bges(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bges(self, op1: Xmm, op2: Xmm, label: str):
         self.branchs(GE, op1, op2, label)
 
-    def bged(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bged(self, op1: Xmm, op2: Xmm, label: str):
         self.branchd(GE, op1, op2, label)
 
-    def bles(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bles(self, op1: Xmm, op2: Xmm, label: str):
         self.branchs(LE, op1, op2, label)
 
-    def bled(self, op1: Xmm, op2: Xmm, label: str) -> None:
+    def bled(self, op1: Xmm, op2: Xmm, label: str):
         self.branchd(LE, op1, op2, label)
 
-    def bgtu(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def bgtu(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(GTU, op1, op2, label)
 
-    def bltu(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def bltu(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(LTU, op1, op2, label)
 
-    def bgeu(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def bgeu(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(GEU, op1, op2, label)
 
-    def bleu(self, op1: Reg, op2: Reg | int, label: str) -> None:
+    def bleu(self, op1: Reg, op2: Reg | int, label: str):
         self.branch(LEU, op1, op2, label)
 
-    def cset(self, cond: CondCode, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def cset(self, cond: CondCode, op1: Reg, op2: Reg | int, r: Reg):
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('cset: destination must be a byte register')
         self.cmp(op1, op2)
         self.setcc(cond, r)
 
-    def csets(self, cond: CondCode, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def csets(self, cond: CondCode, op1: Xmm, op2: Xmm, r: Reg):
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('csets: destination must be a byte register')
         cond = xmm_cond_code(cond)
         self.ucomiss(op1, op2)
         self.setcc(cond, r)
 
-    def csetd(self, cond: CondCode, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def csetd(self, cond: CondCode, op1: Xmm, op2: Xmm, r: Reg):
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('csetd: destination must be a byte register')
         cond = xmm_cond_code(cond)
         self.ucomisd(op1, op2)
         self.setcc(cond, r)
 
-    def seteq(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def seteq(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(EQ, op1, op2, r)
 
-    def setne(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setne(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(NE, op1, op2, r)
 
-    def setgt(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setgt(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(GT, op1, op2, r)
 
-    def setlt(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setlt(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(LT, op1, op2, r)
 
-    def setge(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setge(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(GE, op1, op2, r)
 
-    def setle(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setle(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(LE, op1, op2, r)
 
-    def seteqs(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def seteqs(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csets(EQ, op1, op2, r)
 
-    def seteqd(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def seteqd(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csetd(EQ, op1, op2, r)
 
-    def setnes(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setnes(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csets(NE, op1, op2, r)
 
-    def setned(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setned(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csetd(NE, op1, op2, r)
 
-    def setgts(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setgts(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csets(GT, op1, op2, r)
 
-    def setgtd(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setgtd(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csetd(GT, op1, op2, r)
 
-    def setlts(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setlts(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csets(LT, op1, op2, r)
 
-    def setltd(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setltd(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csetd(LT, op1, op2, r)
 
-    def setges(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setges(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csets(GE, op1, op2, r)
 
-    def setged(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setged(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csetd(GE, op1, op2, r)
 
-    def setles(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setles(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csets(LE, op1, op2, r)
 
-    def setled(self, op1: Xmm, op2: Xmm, r: Reg) -> None:
+    def setled(self, op1: Xmm, op2: Xmm, r: Reg):
         self.csetd(LE, op1, op2, r)
 
-    def setgtu(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setgtu(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(GTU, op1, op2, r)
 
-    def setltu(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setltu(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(LTU, op1, op2, r)
 
-    def setgeu(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setgeu(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(GEU, op1, op2, r)
 
-    def setleu(self, op1: Reg, op2: Reg | int, r: Reg) -> None:
+    def setleu(self, op1: Reg, op2: Reg | int, r: Reg):
         self.cset(LEU, op1, op2, r)
 
-    def ret(self) -> None:
+    def ret(self):
         self.require_text_section('ret')
         self.emit_bytes(b'\xc3')
 
-    def cpuid(self) -> None:
+    def cpuid(self):
         self.require_text_section('cpuid')
         self.emit_bytes(b'\x0f\xa2')
 
@@ -2233,7 +2269,7 @@ class Emitter:
         load_opcode: int,
         store_opcode: int,
         name: str,
-    ) -> None:
+    ):
         self.require_text_section(name)
         match (op1, op2):
             case (Xmm() as dst, Xmm() as src):
@@ -2267,11 +2303,11 @@ class Emitter:
         if isinstance(mem.addr, Rel):
             self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
-    def vmovaps(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem) -> None:
+    def vmovaps(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem):
         require_avx()
         self.emit_vmov(op1, op2, 0x28, 0x29, 'vmovaps')
 
-    def vmovups(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem) -> None:
+    def vmovups(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem):
         require_avx()
         self.emit_vmov(op1, op2, 0x10, 0x11, 'vmovups')
 
@@ -2282,7 +2318,7 @@ class Emitter:
         src2: T,
         opcode: int,
         name: str,
-    ) -> None:
+    ):
         self.require_text_section(name)
         match (dst, src1, src2):
             case (Xmm(), Xmm(), Xmm()):
@@ -2292,28 +2328,28 @@ class Emitter:
             case _:
                 raise EmitterError(f'{name}: invalid form')
 
-    def vaddps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vaddps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x58, 'vaddps')
 
-    def vsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5C, 'vsubps')
 
-    def vmulps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vmulps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x59, 'vmulps')
 
-    def vdivps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vdivps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5E, 'vdivps')
 
-    def vaddsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vaddsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         self.require_text_section('vaddsubps')
         require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0xD0, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
-    def vsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+    def vsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T):
         self.require_text_section('vsqrtps')
         require_avx()
         match (dst, src):
@@ -2324,33 +2360,33 @@ class Emitter:
             case _:
                 raise EmitterError('vsqrtps: invalid form')
 
-    def vmaxps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vmaxps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5F, 'vmaxps')
 
-    def vminps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vminps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5D, 'vminps')
 
-    def vandps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vandps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x54, 'vandps')
 
-    def vandnps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vandnps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         self.require_text_section('vandnps')
         require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x55, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
-    def vorps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vorps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x56, 'vorps')
 
-    def vxorps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vxorps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         self.require_text_section('vxorps')
         require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x57, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
-    def emit_vroundps[T: (Xmm, Ymm)](self, dst: T, src: T, mode: int) -> None:
+    def emit_vroundps[T: (Xmm, Ymm)](self, dst: T, src: T, mode: int):
         self.require_text_section('vroundps')
         if mode < 0 or mode > 0x0F:
             raise EmitterError('vroundps: mode must fit in 4 bits')
@@ -2366,19 +2402,19 @@ class Emitter:
             case _:
                 raise EmitterError('vroundps: invalid form')
 
-    def vroundps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+    def vroundps[T: (Xmm, Ymm)](self, dst: T, src: T):
         require_avx()
         self.emit_vroundps(dst, src, 0)
 
-    def vfloorps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+    def vfloorps[T: (Xmm, Ymm)](self, dst: T, src: T):
         require_avx()
         self.emit_vroundps(dst, src, 1)
 
-    def vceilps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+    def vceilps[T: (Xmm, Ymm)](self, dst: T, src: T):
         require_avx()
         self.emit_vroundps(dst, src, 2)
 
-    def vtruncps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+    def vtruncps[T: (Xmm, Ymm)](self, dst: T, src: T):
         require_avx()
         self.emit_vroundps(dst, src, 3)
 
@@ -2388,7 +2424,7 @@ class Emitter:
         src1: T,
         src2: T,
         predicate: int,
-    ) -> None:
+    ):
         self.require_text_section('vcmpps')
         require_avx()
         if predicate < 0 or predicate > 7:
@@ -2405,52 +2441,52 @@ class Emitter:
             case _:
                 raise EmitterError('vcmpps: invalid form')
 
-    def veqps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def veqps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src1, src2, 0)
 
-    def vltps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vltps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src1, src2, 1)
 
-    def vleps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vleps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src1, src2, 2)
 
-    def vunordps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vunordps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src1, src2, 3)
 
-    def vneps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vneps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src1, src2, 4)
 
-    def vnltps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vnltps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src1, src2, 5)
 
-    def vnleps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vnleps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src1, src2, 6)
 
-    def vordps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vordps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src1, src2, 7)
 
-    def vgtps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vgtps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src2, src1, 1)
 
-    def vgeps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vgeps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
         self.vcmpps(dst, src2, src1, 2)
     
-    def vhaddps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vhaddps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         self.require_text_section('vhaddps')
         require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7C, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
-    def vhsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None:
+    def vhsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         self.require_text_section('vhsubps')
         require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
@@ -2478,29 +2514,29 @@ class Emitter:
         imm8 |= output_imm
         self.emit_bytes(encode_vex(dst, src1, src2, 0x40, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
-    def vrcpps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+    def vrcpps[T: (Xmm, Ymm)](self, dst: T, src: T):
         self.require_text_section('vrcpps')
         require_avx()
         self.emit_bytes(encode_vex(dst, None, src, 0x53, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
-    def vrsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
+    def vrsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T):
         self.require_text_section('vrsqrtps')
         require_avx()
         self.emit_bytes(encode_vex(dst, None, src, 0x52, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
-    def vzeroupper(self) -> None:
+    def vzeroupper(self):
         self.require_text_section('vzeroupper')
         require_avx()
         self.emit_bytes(b'\xc5\xf8\x77')
 
-    def vptest(self, op1, op2) -> None:
+    def vptest(self, op1, op2):
         assert type(op1) in [Xmm, Ymm]
         assert type(op1) == type(op2)
         self.require_text_section('vptest')
         require_avx()
         self.emit_bytes(encode_vex(op1, None, op2, 0x17, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
 
-    def vblendps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, mask: list[int]) -> None:
+    def vblendps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, mask: list[int]):
         self.require_text_section('vblendps')
         require_avx()
         if isinstance(dst, Xmm):
@@ -2512,7 +2548,7 @@ class Emitter:
         imm8 = sum((value - 1) << i for i, value in enumerate(mask))
         self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
-    def vshufps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, imm: list[int]) -> None:
+    def vshufps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, imm: list[int]):
         self.require_text_section('vshufps')
         require_avx()
         if len(imm) != 4 or any(value < 0 or value > 3 for value in imm):
@@ -2540,7 +2576,7 @@ class Emitter:
             self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
 
     # zero_mask: 1 zeros the corresponding element; 0 keeps its value after insertion.
-    def vinsertps(self, dst: Xmm, src1: Xmm, src2: Xmm, count_dst: int, count_src: int, zero_mask: list[int]) -> None:
+    def vinsertps(self, dst: Xmm, src1: Xmm, src2: Xmm, count_dst: int, count_src: int, zero_mask: list[int]):
         self.require_text_section('vinsertps')
         require_avx()
         if count_dst < 0 or count_dst > 3:
@@ -2554,18 +2590,18 @@ class Emitter:
         self.emit_bytes(encode_vex(dst, src1, src2, 0x21, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     @overload
-    def vbroadcastss(self, dst: Xmm, src: Mem) -> None: ...
+    def vbroadcastss(self, dst: Xmm, src: Mem): ...
 
     @overload
-    def vbroadcastss(self, dst: Ymm, src: Mem) -> None: ...
+    def vbroadcastss(self, dst: Ymm, src: Mem): ...
 
     @overload
-    def vbroadcastss(self, dst: Xmm, src: Xmm) -> None: ...
+    def vbroadcastss(self, dst: Xmm, src: Xmm): ...
 
     @overload
-    def vbroadcastss(self, dst: Ymm, src: Xmm) -> None: ...
+    def vbroadcastss(self, dst: Ymm, src: Xmm): ...
 
-    def vbroadcastss(self, dst: Xmm | Ymm, src: Xmm | Mem) -> None:
+    def vbroadcastss(self, dst: Xmm | Ymm, src: Xmm | Mem):
         self.require_text_section('vbroadcastss')
         require_avx()
         if isinstance(src, Xmm):
@@ -2586,7 +2622,7 @@ class Emitter:
         if isinstance(src.addr, Rel):
             self.add_label_ref(src.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
-def init_cpu_features() -> None:
+def init_cpu_features():
     global cpu_features
     e = Emitter()
 
