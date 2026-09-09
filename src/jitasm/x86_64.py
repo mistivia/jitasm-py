@@ -161,7 +161,7 @@ class Reg:
         return self * scale
 
     def __add__(self, other):
-        assert type(other) in [Reg, Sib, int, str]
+        assert type(other) in (Reg, Sib, int, str)
         if self.name == RegName.RIP:
             if type(other) is str:
                 return Rel(other)
@@ -443,14 +443,14 @@ ymm14 = Ymm(14)
 ymm15 = Ymm(15)
 
 def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None):
-    assert type(dst)     in [Xmm, Ymm]
-    assert type(src1)    in [Xmm, Ymm, type(None)]
-    assert type(src2)    in [Xmm, Ymm]
+    assert type(dst)     in (Xmm, Ymm)
+    assert type(src1)    in (Xmm, Ymm, type(None))
+    assert type(src2)    in (Xmm, Ymm)
     assert type(opcode)  is int
     assert type(vex_map) is VexMap
     assert type(pp)      is VexPP
     assert type(w)       is VexW
-    assert type(imm)     in [int, type(None)]
+    assert type(imm)     in (int, type(None))
     if dst.id < 0 or dst.id > 15:
         raise EmitterError('invalid VEX register')
     if src1 is not None and (src1.id < 0 or src1.id > 15):
@@ -481,8 +481,8 @@ def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None):
     return result
 
 def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w):
-    assert type(dst)     in [Mem, int]
-    assert type(src)     in [int, Mem]
+    assert type(dst)     in (Mem, int)
+    assert type(src)     in (int, Mem)
     assert type(l)       is VexL
     assert type(opcode)  is int
     assert type(vex_map) is VexMap
@@ -509,8 +509,8 @@ def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w):
 
 class Sib: # r64 + r64 * scale + offset
     def __init__(self, base = None, index = None, scale = 1, offset = 0):
-        assert type(base)   in [Reg, type(None)]
-        assert type(index)  in [Reg, type(None)]
+        assert type(base)   in (Reg, type(None))
+        assert type(index)  in (Reg, type(None))
         assert type(scale)  is int
         assert type(offset) is int
         self.base = base
@@ -525,7 +525,7 @@ class Sib: # r64 + r64 * scale + offset
             and self.scale == other.scale and self.offset == other.offset
 
     def __add__(self, other):
-        assert type(other) in [Reg, Sib, int]
+        assert type(other) in (Reg, Sib, int)
         if type(other) is int:
             offset = other
             result = Sib(self.base, self.index, self.scale, self.offset + offset)
@@ -562,7 +562,7 @@ class Sib: # r64 + r64 * scale + offset
         return result
 
     def __radd__(self, other): # returns Sib
-        assert type(other) in [Reg, Sib, int]
+        assert type(other) in (Reg, Sib, int)
         return self + other
 
     def __sub__(self, other): # returns Sib
@@ -597,7 +597,7 @@ class Rel: # relative to rip
 class Mem:
     def __init__(self, size, addr):
         assert type(size) is WordSize
-        assert type(addr) in [Reg, Sib, Rel, Xmm, Ymm]
+        assert type(addr) in (Reg, Sib, Rel, Xmm, Ymm)
         self.size = size
         self.addr = addr
 
@@ -605,37 +605,37 @@ class Mem:
         return type(other) == Mem and self.size == other.size and self.addr == other.addr
 
 def byte_ptr(addr):
-    assert type(addr) in [Reg, Sib, Rel]
+    assert type(addr) in (Reg, Sib, Rel)
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(BYTE, addr)
 
 def word_ptr(addr):
-    assert type(addr) in [Reg, Sib, Rel]
+    assert type(addr) in (Reg, Sib, Rel)
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(WORD, addr)
 
 def dword_ptr(addr):
-    assert type(addr) in [Reg, Sib, Rel]
+    assert type(addr) in (Reg, Sib, Rel)
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(DWORD, addr)
 
 def qword_ptr(addr):
-    assert type(addr) in [Reg, Sib, Rel]
+    assert type(addr) in (Reg, Sib, Rel)
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(QWORD, addr)
 
 def m128_ptr(addr):
-    assert type(addr) in [Reg, Sib, Rel]
+    assert type(addr) in (Reg, Sib, Rel)
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(M128, addr)
 
 def m256_ptr(addr):
-    assert type(addr) in [Reg, Sib, Rel]
+    assert type(addr) in (Reg, Sib, Rel)
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(M256, addr)
@@ -737,7 +737,7 @@ class LabelDelta:
 class LabelRef:
     def __init__(self, position, delta):
         assert type(position) is int
-        assert type(delta) in [RipDelta, LabelDelta]
+        assert type(delta) in (RipDelta, LabelDelta)
         self.position = position
         self.delta = delta
 
@@ -1023,8 +1023,8 @@ class Emitter:
             raise EmitterError('mov: invalid form')
 
     def movzx(self, op1, op2):
-        assert type(op1) in [Reg, Mem]
-        assert type(op2) in [Reg, Mem]
+        assert type(op1) in (Reg, Mem)
+        assert type(op2) in (Reg, Mem)
         self.require_text_section('movzx')
         if type(op1) is not Reg or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movzx: destination must be a qword register')
@@ -1067,8 +1067,8 @@ class Emitter:
             raise EmitterError('movzx: invalid form')
 
     def movsx(self, op1, op2):
-        assert type(op1) in [Reg, Mem]
-        assert type(op2) in [Reg, Mem]
+        assert type(op1) in (Reg, Mem)
+        assert type(op2) in (Reg, Mem)
         self.require_text_section('movsx')
         if type(op1) is not Reg or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movsx: destination must be a qword register')
@@ -1238,8 +1238,8 @@ class Emitter:
             raise EmitterError('%s: invalid form' % name)
 
     def movss_sse(self, op1, op2):
-        assert type(op1) in [Xmm, Mem]
-        assert type(op2) in [Xmm, Mem]
+        assert type(op1) in (Xmm, Mem)
+        assert type(op2) in (Xmm, Mem)
         self.emit_mov_scalar(op1, op2, DWORD, b'\xf3', 'movss')
 
     def emit_mov_scalar_avx(self, op1, op2, size, pp, name):
@@ -1281,19 +1281,19 @@ class Emitter:
             raise EmitterError('%s: invalid form' % name)
 
     def movss_avx(self, op1, op2):
-        assert type(op1) in [Xmm, Mem]
-        assert type(op2) in [Xmm, Mem]
+        assert type(op1) in (Xmm, Mem)
+        assert type(op2) in (Xmm, Mem)
         require_avx()
         self.emit_mov_scalar_avx(op1, op2, DWORD, VexPP.PF3, 'movss')
 
     def movsd_sse(self, op1, op2):
-        assert type(op1) in [Xmm, Mem]
-        assert type(op2) in [Xmm, Mem]
+        assert type(op1) in (Xmm, Mem)
+        assert type(op2) in (Xmm, Mem)
         self.emit_mov_scalar(op1, op2, QWORD, b'\xf2', 'movsd')
 
     def movsd_avx(self, op1: Operand, op2: Operand):
-        assert type(op1) in [Xmm, Mem]
-        assert type(op2) in [Xmm, Mem]
+        assert type(op1) in (Xmm, Mem)
+        assert type(op2) in (Xmm, Mem)
         require_avx()
         self.emit_mov_scalar_avx(op1, op2, QWORD, VexPP.PF2, 'movsd')
 
@@ -2521,9 +2521,9 @@ class Emitter:
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vdpps(self, dst, src1, src2, input_mask, output_mask):
-        assert type(dst)         in [Xmm, Ymm]
-        assert type(src1)        in [Xmm, Ymm]
-        assert type(src2)        in [Xmm, Ymm]
+        assert type(dst)         in (Xmm, Ymm)
+        assert type(src1)        in (Xmm, Ymm)
+        assert type(src2)        in (Xmm, Ymm)
         assert type(input_mask)  is list
         assert type(output_mask) is list
         self.require_text_section('vdpps')
@@ -2559,7 +2559,7 @@ class Emitter:
         self.emit_bytes(b'\xc5\xf8\x77')
 
     def vptest(self, op1, op2):
-        assert type(op1) in [Xmm, Ymm]
+        assert type(op1) in (Xmm, Ymm)
         assert type(op1) == type(op2)
         self.require_text_section('vptest')
         require_avx()
@@ -2586,9 +2586,9 @@ class Emitter:
         self.emit_bytes(encode_vex(dst, src1, src2, 0xC6, VexMap.MAP_0F, VexPP.NONE, VexW.W0, imm8))
 
     def vpermilps(self, dst, src1, src2):
-        assert type(dst)  in [Xmm, Ymm]
-        assert type(src1) in [Xmm, Ymm]
-        assert type(src2) in [Xmm, Ymm, list]
+        assert type(dst)  in (Xmm, Ymm)
+        assert type(src1) in (Xmm, Ymm)
+        assert type(src2) in (Xmm, Ymm, list)
         if type(src2) is not list:
             assert type(dst) == type(src1) == type(src2)
         else:
