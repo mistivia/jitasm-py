@@ -19,6 +19,6 @@ def test_cpu_features() -> None:
     assert failed
 
     x86.init_cpu_features()
-    assert isinstance(x86.cpu_features.avx, bool)
-    assert isinstance(x86.cpu_features.avx2, bool)
-    assert isinstance(x86.cpu_features.fma, bool)
+    assert type(x86.cpu_features.avx) is bool
+    assert type(x86.cpu_features.avx2) is bool
+    assert type(x86.cpu_features.fma) is bool

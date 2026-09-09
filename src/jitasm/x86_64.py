@@ -163,17 +163,17 @@ class Reg:
     def __add__(self, other):
         assert type(other) in [Reg, Sib, int, str]
         if self.name == RegName.RIP:
-            if isinstance(other, str):
+            if type(other) is str:
                 return Rel(other)
             raise EmitterError('rip can only be added to a label')
-        if isinstance(other, Reg):
+        if type(other) is Reg:
             index = other
             if index.name == RegName.RIP:
                 raise EmitterError('rip can only be added to a label')
             return Sib(self, index)
-        elif isinstance(other, Sib):
+        elif type(other) is Sib:
             return other.__radd__(self)
-        elif isinstance(other, int):
+        elif type(other) is int:
             return Sib(self, offset=other)
         else:
             raise EmitterError('invalid register address expression')
@@ -182,7 +182,7 @@ class Reg:
         assert type(other) is int
         if self.name == RegName.RIP:
             raise EmitterError('rip can only be added to a label')
-        if isinstance(other, int):
+        if type(other) is int:
             return Sib(self, offset=other)
         else:
             raise RuntimeError('never')
@@ -490,10 +490,10 @@ def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w):
     assert type(w)       is VexW
     if opcode < 0 or opcode > 0xFF:
         raise EmitterError('VEX opcode must fit in one byte')
-    if isinstance(dst, int) and isinstance(src, Mem):
+    if type(dst) is int and type(src) is Mem:
         reg = dst
         mem = src
-    elif isinstance(dst, Mem) and isinstance(src, int):
+    elif type(dst) is Mem and type(src) is int:
         mem = dst
         reg = src
     else:
@@ -519,17 +519,17 @@ class Sib: # r64 + r64 * scale + offset
         self.offset = offset
     
     def __eq__(self, other):
-        if not isinstance(other, Sib):
+        if type(other) is not Sib:
             return False
         return self.base == other.base and self.index == other.index \
             and self.scale == other.scale and self.offset == other.offset
 
     def __add__(self, other):
         assert type(other) in [Reg, Sib, int]
-        if isinstance(other, int):
+        if type(other) is int:
             offset = other
             result = Sib(self.base, self.index, self.scale, self.offset + offset)
-        elif isinstance(other, Reg):
+        elif type(other) is Reg:
             reg = other
             if reg.name == RegName.RIP:
                 raise EmitterError('rip can only be added to a label')
@@ -539,7 +539,7 @@ class Sib: # r64 + r64 * scale + offset
                 result = Sib(self.base, reg, 1, self.offset)
             else:
                 raise EmitterError('address expression already has a base and index')
-        elif isinstance(other, Sib):
+        elif type(other) is Sib:
             sib = other
             if self.base is not None and sib.base is not None:
                 raise EmitterError('both address expressions have a base')
@@ -659,7 +659,7 @@ class EncodedRegMemOp:
         suffix = bytearray()
 
         addr = mem.addr
-        if isinstance(addr, Reg):
+        if type(addr) is Reg:
             base = addr
             if base == RIP or base.size != QWORD:
                 raise EmitterError('invalid base register type')
@@ -674,10 +674,10 @@ class EncodedRegMemOp:
                 suffix.append(0)
             else:
                 mod_rm = ((reg_id & 7) << 3) | rm
-        elif isinstance(addr, Rel):
+        elif type(addr) is Rel:
             mod_rm = ((reg_id & 7) << 3) | 5
             suffix.extend(b'\x00\x00\x00\x00')
-        elif isinstance(addr, Sib):
+        elif type(addr) is Sib:
             validate_sib(addr)
             if addr.index is None:
                 index_bits = 4
@@ -793,14 +793,14 @@ class Emitter:
             else:
                 label_address = data_address + label_offset
             for ref in references:
-                if isinstance(ref.delta, RipDelta):
+                if type(ref.delta) is RipDelta:
                     displacement = label_address - (text_address + ref.delta.rip)
                     encoded = signed_bytes(displacement, 4)
                     if encoded is None or ref.position < 0 or ref.position + 4 > len(self.text):
                         close_mem_map(mapping)
                         raise EmitterError('link error: offset out of range')
                     patches.append((ref.position, encoded))
-                elif isinstance(ref.delta, LabelDelta):
+                elif type(ref.delta) is LabelDelta:
                     base = self.labels.get(ref.delta.base_label)
                     if base is None:
                         close_mem_map(mapping)
@@ -880,13 +880,13 @@ class Emitter:
         if self.section != Section.DATA:
             raise EmitterError('dd: must be emitted at data section')
         for value in values:
-            if isinstance(value, float):
+            if type(value) is float:
                 try:
                     self.emit_bytes(struct.pack('<f', value))
                 except OverflowError:
                     raise EmitterError('dd: float must fit in 32 bits') from None
                 continue
-            if isinstance(value, tuple) and len(value) == 2 and type(value[0]) is str and type(value[1]) is str:
+            if type(value) is tuple and len(value) == 2 and type(value[0]) is str and type(value[1]) is str:
                 target_label = value[0]
                 base_label = value[1]
                 self.add_label_ref(target_label, len(self.data), LabelDelta(base_label))
@@ -900,7 +900,7 @@ class Emitter:
         if self.section != Section.DATA:
             raise EmitterError('dq: must be emitted at data section')
         for value in values:
-            if isinstance(value, float):
+            if type(value) is float:
                 self.emit_bytes(struct.pack('<d', value))
                 continue
             if value < -(1 << 63) or value >= (1 << 64):
@@ -966,16 +966,16 @@ class Emitter:
             rex_prefix = b''
         instruction_start = self.section_offset()
         self.emit_bytes(legacy_prefix + rex_prefix + opcode + bytes((encoded.mod_rm,)) + encoded.suffix)
-        if isinstance(mem.addr, Rel):
+        if type(mem.addr) is Rel:
             disp_pos = instruction_start + len(legacy_prefix) + len(rex_prefix) + len(opcode) + 1
             self.add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
     def emit_mov_mem(self, op1, op2):
-        if isinstance(op1, Reg) and isinstance(op2, Mem):
+        if type(op1) is Reg and type(op2) is Mem:
             reg = op1
             mem = op2
             opcode = b'\x8b'
-        elif isinstance(op1, Mem) and isinstance(op2, Reg):
+        elif type(op1) is Mem and type(op2) is Reg:
             mem = op1
             reg = op2
             if mem.size == BYTE:
@@ -993,7 +993,7 @@ class Emitter:
 
     def mov(self, op1, op2):
         self.require_text_section('mov')
-        if isinstance(op1, Reg) and isinstance(op2, Reg):
+        if type(op1) is Reg and type(op2) is Reg:
             if op1 == RIP or op2 == RIP or op1.size != QWORD or op2.size != QWORD:
                 raise EmitterError('mov: register must be qword and cannot be rip')
             dst = reg_id(op1)
@@ -1001,7 +1001,7 @@ class Emitter:
             rex = 0x48 | ((src >> 3) << 2) | (dst >> 3)
             mod_rm = 0xC0 | ((src & 7) << 3) | (dst & 7)
             self.emit_bytes(bytes((rex, 0x89, mod_rm)))
-        elif isinstance(op1, Reg) and isinstance(op2, int):
+        elif type(op1) is Reg and type(op2) is int:
             if op1 == RIP or op1.size != QWORD or not -(1 << 63) <= op2 < (1 << 64):
                 raise EmitterError('mov: register must be qword and cannot be rip, imm must be 64 bit number')
             if op2 == 0:
@@ -1011,11 +1011,11 @@ class Emitter:
             rex = 0x48 | (dst >> 3)
             immediate = (op2 & ((1 << 64) - 1)).to_bytes(8, 'little')
             self.emit_bytes(bytes((rex, 0xB8 | (dst & 7))) + immediate)
-        elif isinstance(op1, Reg) and isinstance(op2, Mem):
+        elif type(op1) is Reg and type(op2) is Mem:
             if op1 == RIP or op1.size != QWORD or op2.size != QWORD:
                 raise EmitterError('mov: register must be qword and cannot be rip')
             self.emit_mov_mem(op1, op2)
-        elif isinstance(op1, Mem) and isinstance(op2, Reg):
+        elif type(op1) is Mem and type(op2) is Reg:
             if op2 == RIP or op2.size != QWORD:
                 raise EmitterError('mov: register must be qword and cannot be rip')
             self.emit_mov_mem(op1, op2)
@@ -1026,11 +1026,11 @@ class Emitter:
         assert type(op1) in [Reg, Mem]
         assert type(op2) in [Reg, Mem]
         self.require_text_section('movzx')
-        if not isinstance(op1, Reg) or op1 == RIP or op1.size != QWORD:
+        if type(op1) is not Reg or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movzx: destination must be a qword register')
 
         dst = reg_id(op1)
-        if isinstance(op2, Reg):
+        if type(op2) is Reg:
             src = op2
             if src == RIP or src.size not in (BYTE, WORD, DWORD):
                 raise EmitterError('movzx: source must be a byte, word, or dword register')
@@ -1051,7 +1051,7 @@ class Emitter:
                 rex = 0x48 | ((dst >> 3) << 2) | (src_id >> 3)
                 mod_rm = 0xC0 | ((dst & 7) << 3) | (src_id & 7)
                 self.emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
-        elif isinstance(op2, Mem):
+        elif type(op2) is Mem:
             mem = op2
             if mem.size not in (BYTE, WORD, DWORD):
                 raise EmitterError('movzx: source must be byte, word, or dword memory')
@@ -1070,11 +1070,11 @@ class Emitter:
         assert type(op1) in [Reg, Mem]
         assert type(op2) in [Reg, Mem]
         self.require_text_section('movsx')
-        if not isinstance(op1, Reg) or op1 == RIP or op1.size != QWORD:
+        if type(op1) is not Reg or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movsx: destination must be a qword register')
 
         dst = reg_id(op1)
-        if isinstance(op2, Reg):
+        if type(op2) is Reg:
             src = op2
             if src == RIP or src.size not in (BYTE, WORD, DWORD):
                 raise EmitterError('movsx: source must be a byte, word, or dword register')
@@ -1089,7 +1089,7 @@ class Emitter:
                 else:
                     opcode = 0xBF
                 self.emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
-        elif isinstance(op2, Mem):
+        elif type(op2) is Mem:
             mem = op2
             if mem.size not in (BYTE, WORD, DWORD):
                 raise EmitterError('movsx: source must be byte, word, or dword memory')
@@ -1106,7 +1106,7 @@ class Emitter:
 
     def lea(self, op1, op2):
         self.require_text_section('lea')
-        if isinstance(op1, Reg) and isinstance(op2, Mem):
+        if type(op1) is Reg and type(op2) is Mem:
             dst = op1
             mem = op2
             if dst == RIP or dst.size != QWORD:
@@ -1204,13 +1204,13 @@ class Emitter:
         self.emit_bytes(
             prefix + rex_prefix + bytes((0x0F, opcode, encoded.mod_rm)) + encoded.suffix
         )
-        if isinstance(mem.addr, Rel):
+        if type(mem.addr) is Rel:
             disp_pos = instruction_start + len(prefix) + len(rex_prefix) + 3
             self.add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
     def emit_mov_scalar(self, op1: Operand, op2: Operand, size: WordSize, prefix: bytes, name: str):
         self.require_text_section(name)
-        if isinstance(op1, Xmm) and isinstance(op2, Xmm):
+        if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
             src = op2
             if dst.id < 0 or dst.id > 15 or src.id < 0 or src.id > 15:
@@ -1222,13 +1222,13 @@ class Emitter:
                 rex_prefix = b''
             mod_rm = 0xC0 | ((dst.id & 7) << 3) | (src.id & 7)
             self.emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x10, mod_rm)))
-        elif isinstance(op1, Xmm) and isinstance(op2, Mem):
+        elif type(op1) is Xmm and type(op2) is Mem:
             dst = op1
             mem = op2
             if dst.id < 0 or dst.id > 15 or mem.size != size:
                 raise EmitterError('%s: operands have incompatible sizes' % name)
             self.emit_mov_scalar_mem(dst, mem, 0x10, prefix)
-        elif isinstance(op1, Mem) and isinstance(op2, Xmm):
+        elif type(op1) is Mem and type(op2) is Xmm:
             mem = op1
             src = op2
             if src.id < 0 or src.id > 15 or mem.size != size:
@@ -1247,13 +1247,13 @@ class Emitter:
         assert type(pp) is VexPP
         assert type(name) is str
         self.require_text_section(name)
-        if isinstance(op1, Xmm) and isinstance(op2, Xmm):
+        if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
             src = op2
             self.emit_bytes(encode_vex(
                 dst, dst, src, 0x10, VexMap.MAP_0F, pp, VexW.W0,
             ))
-        elif isinstance(op1, Xmm) and isinstance(op2, Mem):
+        elif type(op1) is Xmm and type(op2) is Mem:
             dst = op1
             mem = op2
             if dst.id < 0 or dst.id > 15 or mem.size != size:
@@ -1263,9 +1263,9 @@ class Emitter:
                 dst.id, mem, VexL.L128, 0x10,
                 VexMap.MAP_0F, pp, VexW.W0,
             ))
-            if isinstance(mem.addr, Rel):
+            if type(mem.addr) is Rel:
                 self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
-        elif isinstance(op1, Mem) and isinstance(op2, Xmm):
+        elif type(op1) is Mem and type(op2) is Xmm:
             mem = op1
             src = op2
             if src.id < 0 or src.id > 15 or mem.size != size:
@@ -1275,7 +1275,7 @@ class Emitter:
                 mem, src.id, VexL.L128, 0x11,
                 VexMap.MAP_0F, pp, VexW.W0,
             ))
-            if isinstance(mem.addr, Rel):
+            if type(mem.addr) is Rel:
                 self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
         else:
             raise EmitterError('%s: invalid form' % name)
@@ -1662,7 +1662,7 @@ class Emitter:
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('binary op: first operand must be a qword register')
         dst = reg_id(op1)
-        if isinstance(op2, Reg):
+        if type(op2) is Reg:
             src = op2
             if src == RIP or src.size != QWORD:
                 raise EmitterError('binary op: second operand must be a qword register')
@@ -1670,7 +1670,7 @@ class Emitter:
             rex = 0x48 | ((src_id >> 3) << 2) | (dst >> 3)
             mod_rm = 0xC0 | ((src_id & 7) << 3) | (dst & 7)
             self.emit_bytes(bytes((rex, opcode, mod_rm)))
-        elif isinstance(op2, int):
+        elif type(op2) is int:
             immediate = op2
             encoded = signed_bytes(immediate, 4)
             if encoded is None:
@@ -1719,7 +1719,7 @@ class Emitter:
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('imul: first operand must be a qword register')
         dst = reg_id(op1)
-        if isinstance(op2, Reg):
+        if type(op2) is Reg:
             src = op2
             if src == RIP or src.size != QWORD:
                 raise EmitterError('imul: second operand must be a qword register')
@@ -1727,7 +1727,7 @@ class Emitter:
             rex = 0x48 | ((dst >> 3) << 2) | (src_id >> 3)
             mod_rm = 0xC0 | ((dst & 7) << 3) | (src_id & 7)
             self.emit_bytes(bytes((rex, 0x0F, 0xAF, mod_rm)))
-        elif isinstance(op2, int):
+        elif type(op2) is int:
             immediate = op2
             encoded = signed_bytes(immediate, 4)
             if encoded is None:
@@ -1806,13 +1806,13 @@ class Emitter:
         dst = reg_id(op1)
         rex = 0x48 | (dst >> 3)
         mod_rm = 0xC0 | (imm_id << 3) | (dst & 7)
-        if isinstance(op2, Reg):
+        if type(op2) is Reg:
             src = op2
             if src == RIP or src.size != QWORD:
                 raise EmitterError('shift: second operand must be a qword register')
             self.mov(RCX, src)
             self.emit_bytes(bytes((rex, 0xD3, mod_rm)))
-        elif isinstance(op2, int):
+        elif type(op2) is int:
             immediate = op2
             if immediate < 0 or immediate >= (1 << 8):
                 raise EmitterError('shift: immediate must fit in unsigned 8 bits')
@@ -1873,12 +1873,12 @@ class Emitter:
 
     def call(self, target: str | Reg):
         self.require_text_section('call')
-        if isinstance(target, str):
+        if type(target) is str:
             label = target
             instruction_start = self.section_offset()
             self.emit_bytes(b'\xe8\x00\x00\x00\x00')
             self.add_label_ref(label, instruction_start + 1, RipDelta(len(self.text)))
-        elif isinstance(target, Reg):
+        elif type(target) is Reg:
             reg = target
             if reg == RIP or reg.size != QWORD:
                 raise EmitterError('call: target must be a qword register')
@@ -1894,12 +1894,12 @@ class Emitter:
 
     def jmp(self, target: str | Reg):
         self.require_text_section('jmp')
-        if isinstance(target, str):
+        if type(target) is str:
             label = target
             instruction_start = self.section_offset()
             self.emit_bytes(b'\xe9\x00\x00\x00\x00')
             self.add_label_ref(label, instruction_start + 1, RipDelta(len(self.text)))
-        elif isinstance(target, Reg):
+        elif type(target) is Reg:
             reg = target
             if reg == RIP or reg.size != QWORD:
                 raise EmitterError('jmp: target must be a qword register')
@@ -1919,7 +1919,7 @@ class Emitter:
             raise EmitterError('cmp: first operand must be a qword register')
 
         dst = reg_id(op1)
-        if isinstance(op2, Reg):
+        if type(op2) is Reg:
             src = op2
             if src == RIP or src.size != QWORD:
                 raise EmitterError('cmp: second operand must be a qword register')
@@ -1927,7 +1927,7 @@ class Emitter:
             rex = 0x48 | ((src_id >> 3) << 2) | (dst >> 3)
             mod_rm = 0xC0 | ((src_id & 7) << 3) | (dst & 7)
             self.emit_bytes(bytes((rex, 0x39, mod_rm)))
-        elif isinstance(op2, int):
+        elif type(op2) is int:
             immediate = op2
             encoded = signed_bytes(immediate, 4)
             if encoded is None:
@@ -2293,35 +2293,35 @@ class Emitter:
         name: str,
     ):
         self.require_text_section(name)
-        if isinstance(op1, Xmm) and isinstance(op2, Xmm):
+        if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
             src = op2
             self.emit_bytes(encode_vex(dst, None, src, load_opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
             return
-        elif isinstance(op1, Ymm) and isinstance(op2, Ymm):
+        elif type(op1) is Ymm and type(op2) is Ymm:
             dst = op1
             src = op2
             self.emit_bytes(encode_vex(dst, None, src, load_opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
             return
-        elif isinstance(op1, Xmm) and isinstance(op2, Mem):
+        elif type(op1) is Xmm and type(op2) is Mem:
             reg = op1
             mem = op2
             l = VexL.L128
             size = M128
             opcode = load_opcode
-        elif isinstance(op1, Ymm) and isinstance(op2, Mem):
+        elif type(op1) is Ymm and type(op2) is Mem:
             reg = op1
             mem = op2
             l = VexL.L256
             size = M256
             opcode = load_opcode
-        elif isinstance(op1, Mem) and isinstance(op2, Xmm):
+        elif type(op1) is Mem and type(op2) is Xmm:
             mem = op1
             reg = op2
             l = VexL.L128
             size = M128
             opcode = store_opcode
-        elif isinstance(op1, Mem) and isinstance(op2, Ymm):
+        elif type(op1) is Mem and type(op2) is Ymm:
             mem = op1
             reg = op2
             l = VexL.L256
@@ -2333,7 +2333,7 @@ class Emitter:
             raise EmitterError('%s: operands have incompatible sizes' % name)
         instruction_start = self.section_offset()
         self.emit_bytes(encode_vex_rm(reg.id, mem, l, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
-        if isinstance(mem.addr, Rel):
+        if type(mem.addr) is Rel:
             self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
     def vmovaps(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem):
@@ -2353,9 +2353,9 @@ class Emitter:
         name: str,
     ):
         self.require_text_section(name)
-        if isinstance(dst, Xmm) and isinstance(src1, Xmm) and isinstance(src2, Xmm):
+        if type(dst) is Xmm and type(src1) is Xmm and type(src2) is Xmm:
             self.emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
-        elif isinstance(dst, Ymm) and isinstance(src1, Ymm) and isinstance(src2, Ymm):
+        elif type(dst) is Ymm and type(src1) is Ymm and type(src2) is Ymm:
             self.emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
         else:
             raise EmitterError('%s: invalid form' % name)
@@ -2384,9 +2384,9 @@ class Emitter:
     def vsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T):
         self.require_text_section('vsqrtps')
         require_avx()
-        if isinstance(dst, Xmm) and isinstance(src, Xmm):
+        if type(dst) is Xmm and type(src) is Xmm:
             self.emit_bytes(encode_vex(dst, None, src, 0x51, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
-        elif isinstance(dst, Ymm) and isinstance(src, Ymm):
+        elif type(dst) is Ymm and type(src) is Ymm:
             self.emit_bytes(encode_vex(dst, None, src, 0x51, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
         else:
             raise EmitterError('vsqrtps: invalid form')
@@ -2421,11 +2421,11 @@ class Emitter:
         self.require_text_section('vroundps')
         if mode < 0 or mode > 0x0F:
             raise EmitterError('vroundps: mode must fit in 4 bits')
-        if isinstance(dst, Xmm) and isinstance(src, Xmm):
+        if type(dst) is Xmm and type(src) is Xmm:
             self.emit_bytes(encode_vex(
                 dst, None, src, 0x08, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, mode,
             ))
-        elif isinstance(dst, Ymm) and isinstance(src, Ymm):
+        elif type(dst) is Ymm and type(src) is Ymm:
             self.emit_bytes(encode_vex(
                 dst, None, src, 0x08, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, mode,
             ))
@@ -2459,11 +2459,11 @@ class Emitter:
         require_avx()
         if predicate < 0 or predicate > 7:
             raise EmitterError('vcmpps: predicate must be between 0 and 7')
-        if isinstance(dst, Xmm) and isinstance(src1, Xmm) and isinstance(src2, Xmm):
+        if type(dst) is Xmm and type(src1) is Xmm and type(src2) is Xmm:
             self.emit_bytes(encode_vex(
                 dst, src1, src2, 0xC2, VexMap.MAP_0F, VexPP.NONE, VexW.W0, predicate,
             ))
-        elif isinstance(dst, Ymm) and isinstance(src1, Ymm) and isinstance(src2, Ymm):
+        elif type(dst) is Ymm and type(src1) is Ymm and type(src2) is Ymm:
             self.emit_bytes(encode_vex(
                 dst, src1, src2, 0xC2, VexMap.MAP_0F, VexPP.NONE, VexW.W0, predicate,
             ))
@@ -2568,7 +2568,7 @@ class Emitter:
     def vblendps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T, mask: list[int]):
         self.require_text_section('vblendps')
         require_avx()
-        if isinstance(dst, Xmm):
+        if type(dst) is Xmm:
             size = 4
         else:
             size = 8
@@ -2595,7 +2595,7 @@ class Emitter:
             assert type(dst) == type(src1)
         self.require_text_section('vpermilps')
         require_avx()
-        if isinstance(src2, list):
+        if type(src2) is list:
             for value in src2: assert type(value) is int
             if len(src2) != 4 or any(value < 0 or value > 3 for value in src2):
                 raise EmitterError('vpermilps: imm must contain four integers between 0 and 3')
@@ -2621,9 +2621,9 @@ class Emitter:
     def vbroadcastss(self, dst: Xmm | Ymm, src: Xmm | Mem):
         self.require_text_section('vbroadcastss')
         require_avx()
-        if isinstance(src, Xmm):
+        if type(src) is Xmm:
             require_avx2()
-            if isinstance(dst, Ymm):
+            if type(dst) is Ymm:
                 # The source field only encodes the register number; the opcode fixes its width to XMM.
                 self.emit_bytes(encode_vex(dst, None, Ymm(src.id), 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
             else:
@@ -2632,11 +2632,11 @@ class Emitter:
         if src.size != DWORD:
             raise EmitterError('vbroadcastss: source must be dword memory')
         l = VexL.L128
-        if isinstance(dst, Ymm):
+        if type(dst) is Ymm:
             l = VexL.L256
         instruction_start = self.section_offset()
         self.emit_bytes(encode_vex_rm(dst.id, src, l, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
-        if isinstance(src.addr, Rel):
+        if type(src.addr) is Rel:
             self.add_label_ref(src.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
 def init_cpu_features():
