@@ -2520,11 +2520,11 @@ class Emitter:
         require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
-    def vdpps(self, dst, src1, src2, input_mask, output_mask): # returns None
-        assert type(dst) in [Xmm, Ymm]
-        assert type(src1) in [Xmm, Ymm]
-        assert type(src2) in [Xmm, Ymm]
-        assert type(input_mask) is list
+    def vdpps(self, dst, src1, src2, input_mask, output_mask):
+        assert type(dst)         in [Xmm, Ymm]
+        assert type(src1)        in [Xmm, Ymm]
+        assert type(src2)        in [Xmm, Ymm]
+        assert type(input_mask)  is list
         assert type(output_mask) is list
         self.require_text_section('vdpps')
         require_avx()
@@ -2586,7 +2586,7 @@ class Emitter:
         self.emit_bytes(encode_vex(dst, src1, src2, 0xC6, VexMap.MAP_0F, VexPP.NONE, VexW.W0, imm8))
 
     def vpermilps(self, dst, src1, src2):
-        assert type(dst) in [Xmm, Ymm]
+        assert type(dst)  in [Xmm, Ymm]
         assert type(src1) in [Xmm, Ymm]
         assert type(src2) in [Xmm, Ymm, list]
         if type(src2) is not list:
