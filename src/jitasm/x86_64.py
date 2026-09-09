@@ -4,10 +4,7 @@
 import ctypes
 import struct
 from jitasm.system import memory_map, unmap, set_mem_rx, get_page_size
-from dataclasses import dataclass
 from enum import Enum
-from typing import overload, assert_never
-
 
 class CpuFeatures:
     def __init__(self, avx, avx2, fma):
@@ -724,18 +721,22 @@ class Section(Enum):
     TEXT  = 'text'
     DATA  = 'data'
 
-@dataclass
 class RipDelta:
-    rip: int
+    def __init__(self, rip):
+        assert type(rip) is int
+        self.rip = rip
 
-@dataclass
 class LabelDelta:
-    base_label: str
+    def __init__(self, base_label):
+        assert type(base_label) is str
+        self.base_label = base_label
 
-@dataclass
 class LabelRef:
-    position: int
-    delta: RipDelta | LabelDelta
+    def __init__(self, position, delta):
+        assert type(position) is int
+        assert type(delta) in [RipDelta, LabelDelta]
+        self.position = position
+        self.delta = delta
 
 class Emitter:
     def __init__(self):
@@ -790,15 +791,15 @@ class Emitter:
                 label_address = data_address + label_offset
             for ref in references:
                 match ref.delta:
-                    case RipDelta(rip):
-                        displacement = label_address - (text_address + rip)
+                    case RipDelta():
+                        displacement = label_address - (text_address + ref.delta.rip)
                         encoded = signed_bytes(displacement, 4)
                         if encoded is None or ref.position < 0 or ref.position + 4 > len(self.text):
                             close_mem_map(mapping)
                             raise EmitterError('link error: offset out of range')
                         patches.append((ref.position, encoded))
-                    case LabelDelta(base_label):
-                        base = self.labels.get(base_label)
+                    case LabelDelta():
+                        base = self.labels.get(ref.delta.base_label)
                         if base is None:
                             close_mem_map(mapping)
                             raise EmitterError('link error: label not found')
@@ -814,7 +815,7 @@ class Emitter:
                             raise EmitterError('link error: offset out of range')
                         self.data[ref.position:ref.position + 4] = encoded
                     case _:
-                        assert_never(ref.delta)
+                        raise RuntimeError('never')
 
         for reference_offset, encoded in patches:
             self.text[reference_offset:reference_offset + 4] = encoded
@@ -1662,7 +1663,7 @@ class Emitter:
                 mod_rm = 0xC0 | (imm_id << 3) | (dst & 7)
                 self.emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
             case _:
-                assert_never(op2)
+                raise RuntimeError('never')
 
     def add(self, op1: Reg, op2: Reg | int):
         self.require_text_section('add')
@@ -1718,7 +1719,7 @@ class Emitter:
                 mod_rm = 0xC0 | ((dst & 7) << 3) | (dst & 7)
                 self.emit_bytes(bytes((rex, 0x69, mod_rm)) + encoded)
             case _:
-                assert_never(op2)
+                raise RuntimeError('never')
 
     def emit_xchg(self, op1: Reg, op2: Reg):
         dst = reg_id(op1)
@@ -1799,7 +1800,7 @@ class Emitter:
                     raise EmitterError('shift: immediate must fit in unsigned 8 bits')
                 self.emit_bytes(bytes((rex, 0xC1, mod_rm, immediate)))
             case _:
-                assert_never(op2)
+                raise RuntimeError('never')
 
     def shl(self, op1: Reg, op2: Reg | int):
         self.require_text_section('shl')
@@ -1870,7 +1871,7 @@ class Emitter:
                 mod_rm = 0xD0 | (target_id & 7)
                 self.emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
             case _:
-                assert_never(target)
+                raise RuntimeError('never')
 
     def jmp(self, target: str | Reg):
         self.require_text_section('jmp')
@@ -1890,7 +1891,7 @@ class Emitter:
                 mod_rm = 0xE0 | (target_id & 7)
                 self.emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
             case _:
-                assert_never(target)
+                raise RuntimeError('never')
 
     def cmp(self, op1: Reg, op2: Reg | int):
         self.require_text_section('cmp')
@@ -1914,7 +1915,7 @@ class Emitter:
                 mod_rm = 0xF8 | (dst & 7)
                 self.emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
             case _:
-                assert_never(op2)
+                raise RuntimeError('never')
 
     def emit_ucomis(self, x1: Xmm, x2: Xmm, prefix: bytes, name: str):
         self.require_text_section(name)
@@ -2588,18 +2589,6 @@ class Emitter:
         imm8 = (count_src << 6) | (count_dst << 4)
         imm8 |= sum(value << i for i, value in enumerate(zero_mask))
         self.emit_bytes(encode_vex(dst, src1, src2, 0x21, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
-
-    @overload
-    def vbroadcastss(self, dst: Xmm, src: Mem): ...
-
-    @overload
-    def vbroadcastss(self, dst: Ymm, src: Mem): ...
-
-    @overload
-    def vbroadcastss(self, dst: Xmm, src: Xmm): ...
-
-    @overload
-    def vbroadcastss(self, dst: Ymm, src: Xmm): ...
 
     def vbroadcastss(self, dst: Xmm | Ymm, src: Xmm | Mem):
         self.require_text_section('vbroadcastss')
