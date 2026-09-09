@@ -8,9 +8,9 @@ from enum import Enum
 
 class CpuFeatures:
     def __init__(self, avx, avx2, fma):
-        assert type(avx) is bool
+        assert type(avx)  is bool
         assert type(avx2) is bool
-        assert type(fma) is bool
+        assert type(fma)  is bool
         self.avx  = avx
         self.avx2 = avx2
         self.fma  = fma
@@ -445,14 +445,14 @@ ymm14 = Ymm(14)
 ymm15 = Ymm(15)
 
 def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None):
-    assert type(dst) in [Xmm, Ymm]
-    assert type(src1) in [Xmm, Ymm, type(None)]
-    assert type(src2) in [Xmm, Ymm]
-    assert type(opcode) is int
+    assert type(dst)     in [Xmm, Ymm]
+    assert type(src1)    in [Xmm, Ymm, type(None)]
+    assert type(src2)    in [Xmm, Ymm]
+    assert type(opcode)  is int
     assert type(vex_map) is VexMap
-    assert type(pp) is VexPP
-    assert type(w) is VexW
-    assert type(imm) in [int, type(None)]
+    assert type(pp)      is VexPP
+    assert type(w)       is VexW
+    assert type(imm)     in [int, type(None)]
     if dst.id < 0 or dst.id > 15:
         raise EmitterError('invalid VEX register')
     if src1 is not None and (src1.id < 0 or src1.id > 15):
@@ -483,13 +483,13 @@ def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None):
     return result
 
 def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w):
-    assert type(dst) in [Mem, int]
-    assert type(src) in [int, Mem]
-    assert type(l) is VexL
-    assert type(opcode) is int
+    assert type(dst)     in [Mem, int]
+    assert type(src)     in [int, Mem]
+    assert type(l)       is VexL
+    assert type(opcode)  is int
     assert type(vex_map) is VexMap
-    assert type(pp) is VexPP
-    assert type(w) is VexW
+    assert type(pp)      is VexPP
+    assert type(w)       is VexW
     if opcode < 0 or opcode > 0xFF:
         raise EmitterError('VEX opcode must fit in one byte')
     match (dst, src):
@@ -507,9 +507,9 @@ def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w):
 
 class Sib: # r64 + r64 * scale + offset
     def __init__(self, base = None, index = None, scale = 1, offset = 0):
-        assert type(base) in [Reg, type(None)]
-        assert type(index) in [Reg, type(None)]
-        assert type(scale) is int
+        assert type(base)   in [Reg, type(None)]
+        assert type(index)  in [Reg, type(None)]
+        assert type(scale)  is int
         assert type(offset) is int
         self.base = base
         self.index = index
@@ -648,7 +648,7 @@ def close_mem_map(mapping: MemMap):
 
 class EncodedRegMemOp:
     def __init__(self, mem, reg_id):
-        assert type(mem) is Mem
+        assert type(mem)    is Mem
         assert type(reg_id) is int
         
         rex = 0
@@ -766,7 +766,7 @@ class Emitter:
 
     def require_text_section(self, name: str):
         if self.section == Section.DATA:
-            raise EmitterError(f'{name}: cannot emit code at data section')
+            raise EmitterError('%s: cannot emit code at data section' % name)
 
     def finalize(self):
         page_size = get_page_size()
@@ -848,18 +848,20 @@ class Emitter:
             close_mem_map(self.mapping)
             self.mapping = None
 
-    def align(self, bytes: int):
+    def align(self, numbytes):
+        assert type(numbytes) is int
         if self.section != Section.DATA:
             raise EmitterError('align: must be emitted at data section')
-        if bytes <= 0:
+        if numbytes <= 0:
             raise EmitterError('align: alignment must be positive')
-        padding = -len(self.data) % bytes
+        padding = -len(self.data) % numbytes
         self.emit_bytes(b'\x00' * padding)
 
-    def db(self, *values: int):
+    def db(self, *values):
         if self.section != Section.DATA:
             raise EmitterError('db: must be emitted at data section')
         for value in values:
+            assert type(value) is int
             if value < -(1 << 7) or value >= (1 << 8):
                 raise EmitterError('db: value must fit in 8 bits')
             self.emit_bytes(bytes((value & 0xFF,)))
@@ -1244,7 +1246,7 @@ class Emitter:
                 ))
             case (Xmm() as dst, Mem() as mem):
                 if dst.id < 0 or dst.id > 15 or mem.size != size:
-                    raise EmitterError(f'{name}: operands have incompatible sizes')
+                    raise EmitterError('%s: operands have incompatible sizes' % name)
                 instruction_start = self.section_offset()
                 self.emit_bytes(encode_vex_rm(
                     dst.id, mem, VexL.L128, 0x10,
@@ -1254,7 +1256,7 @@ class Emitter:
                     self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
             case (Mem() as mem, Xmm() as src):
                 if src.id < 0 or src.id > 15 or mem.size != size:
-                    raise EmitterError(f'{name}: operands have incompatible sizes')
+                    raise EmitterError('%s: operands have incompatible sizes' % name)
                 instruction_start = self.section_offset()
                 self.emit_bytes(encode_vex_rm(
                     mem, src.id, VexL.L128, 0x11,
@@ -1263,7 +1265,7 @@ class Emitter:
                 if isinstance(mem.addr, Rel):
                     self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
             case _:
-                raise EmitterError(f'{name}: invalid form')
+                raise EmitterError('%s: invalid form' % name)
 
     def movss_avx(self, op1, op2):
         assert type(op1) in [Xmm, Mem]
@@ -1284,7 +1286,7 @@ class Emitter:
 
     def emit_scalar_arith(self, op1: Xmm, op2: Xmm, opcode: int, prefix: bytes, name: str):
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
-            raise EmitterError(f'{name}: invalid xmm register')
+            raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
         if rex != 0x40:
             rex_prefix = bytes((rex,))
