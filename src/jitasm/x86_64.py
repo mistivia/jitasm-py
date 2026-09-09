@@ -183,7 +183,7 @@ class Reg:
                 raise EmitterError('invalid register address expression')
 
     def __radd__(self, other):
-        assert_type(other, int)
+        assert type(other) is int
         if self.name == RegName.RIP:
             raise EmitterError('rip can only be added to a label')
         match other:
@@ -535,9 +535,10 @@ class Sib: # r64 + r64 * scale + offset
                     raise EmitterError('rip can only be added to a label')
                 if self.base is None:
                     result = Sib(reg, self.index, self.scale, self.offset)
-                if self.index is None:
+                elif self.index is None:
                     result = Sib(self.base, reg, 1, self.offset)
-                raise EmitterError('address expression already has a base and index')
+                else:
+                    raise EmitterError('address expression already has a base and index')
             case Sib() as sib:
                 if self.base is not None and sib.base is not None:
                     raise EmitterError('both address expressions have a base')
@@ -2453,11 +2454,11 @@ class Emitter:
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vdpps(self, dst, src1, src2, input_mask, output_mask): # returns None
-        assert_type(dst, [Xmm, Ymm])
-        assert_type(src1, [Xmm, Ymm])
-        assert_type(src2, [Xmm, Ymm])
-        assert_type(input_mask, list)
-        assert_type(output_mask, list)
+        assert type(dst) in [Xmm, Ymm]
+        assert type(src1) in [Xmm, Ymm]
+        assert type(src2) in [Xmm, Ymm]
+        assert type(input_mask) is list
+        assert type(output_mask) is list
         self.require_text_section('vdpps')
         require_avx()
         if len(input_mask) != 4:
@@ -2466,11 +2467,11 @@ class Emitter:
             raise EmitterError('vdpps: output mask must contain four booleans')
         imm8 = 0
         for i, value in enumerate(input_mask):
-            assert_type(value, bool)
+            assert type(value) is bool
             imm8 += int(value) << (i + 4)
         output_imm = 0
         for i, value in enumerate(output_mask):
-            assert_type(value, bool)
+            assert type(value) is bool
             output_imm += int(value) << i
         imm8 |= output_imm
         self.emit_bytes(encode_vex(dst, src1, src2, 0x40, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
