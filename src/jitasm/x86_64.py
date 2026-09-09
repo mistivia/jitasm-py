@@ -525,7 +525,7 @@ class Sib: # r64 + r64 * scale + offset
         return self.base == other.base and self.index == other.index \
             and self.scale == other.scale and self.offset == other.offset
 
-    def __add__(self, other): # returns Sib
+    def __add__(self, other):
         assert type(other) in [Reg, Sib, int]
         match other:
             case int() as offset:
@@ -753,7 +753,9 @@ class Emitter:
     def symbol(self, s: str) -> int:
         if self.symbols is None or s not in self.symbols:
             raise EmitterError('symbol not found')
-        return self.symbols[s]
+        result = self.symbols[s]
+        assert type(result) is int
+        return result
 
     def emit_bytes(self, b: bytes):
         if self.section == Section.TEXT:

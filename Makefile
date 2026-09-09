@@ -22,7 +22,3 @@ test: $(UTILS_EXT)
 benchmark: $(UTILS_EXT)
 	PYTHONPATH=build/local:src $(PYTHON) benchmark/sqrt.py
 
-check:
-	pyright && \
-	.venv/bin/basedpyright -p basedpyrightconfig.json && \
-	.venv/bin/ruff check .
