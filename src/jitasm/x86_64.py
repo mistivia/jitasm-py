@@ -8,25 +8,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import overload, assert_never
 
-def assert_type(value, expected):
-    if isinstance(expected, list):
-        for t in expected:
-            if t is None and value is None:
-                return
-            if t is not None and isinstance(value, t):
-                return
-    else:
-        if expected is not None and isinstance(value, expected):
-            return
-        if expected is None and value is None:
-            return
-    raise TypeError("type error")
 
 class CpuFeatures:
     def __init__(self, avx, avx2, fma):
-        assert_type(avx, bool)
-        assert_type(avx2, bool)
-        assert_type(fma, bool)
+        assert type(avx) is bool
+        assert type(avx2) is bool
+        assert type(fma) is bool
         self.avx  = avx
         self.avx2 = avx2
         self.fma  = fma
@@ -122,7 +109,7 @@ COND_CODE_IDS = {
 }
 
 def xmm_cond_code(cond):
-    assert_type(cond, CondCode)
+    assert type(cond) is CondCode
     match cond:
         case CondCode.GT:
             return CondCode.GTU
@@ -162,23 +149,23 @@ class RegName(Enum):
 
 class Reg:
     def __init__(self, name, size):
-        assert_type(name, RegName)
-        assert_type(size, WordSize)
+        assert type(name) is RegName
+        assert type(size) is WordSize
         self.name = name
         self.size = size
 
     def __mul__(self, scale) -> Sib:
-        assert_type(scale, int)
+        assert type(scale) is int
         if self.name == RegName.RIP:
             raise EmitterError('rip can only be added to a label')
         return Sib(index=self, scale=scale)
 
     def __rmul__(self, scale) -> Sib:
-        assert_type(scale, int)
+        assert type(scale) is int
         return self * scale
 
     def __add__(self, other):
-        assert_type(other, [Reg, Sib, int, str])
+        assert type(other) in [Reg, Sib, int, str]
         if self.name == RegName.RIP:
             if isinstance(other, str):
                 return Rel(other)
@@ -206,7 +193,7 @@ class Reg:
                 raise RuntimeError('never')
 
     def __sub__(self, other):
-        assert_type(other, int)
+        assert type(other) is int
         return self + -other
 
 class EmitterError(RuntimeError):
@@ -369,13 +356,13 @@ REG_IDS = {
     RegName.R12: 12, RegName.R13: 13, RegName.R14: 14, RegName.R15: 15,
 }
 
-def reg_id(reg: Reg):
-    assert_type(reg, Reg)
+def reg_id(reg):
+    assert type(reg) is Reg
     return REG_IDS[reg.name]
 
 def signed_bytes(value, size):
-    assert_type(value, int)
-    assert_type(size, int)
+    assert type(value) is int
+    assert type(size) is int
     min_value = -(1 << (size * 8 - 1))
     max_value = (1 << (size * 8 - 1)) - 1
     if value < min_value or value > max_value:
@@ -384,7 +371,7 @@ def signed_bytes(value, size):
 
 class Xmm:
     def __init__(self, id):
-        assert_type(id, int)
+        assert type(id) is int
         self.id = id
 
 XMM0  = Xmm(0)
@@ -423,7 +410,7 @@ xmm15 = Xmm(15)
 
 class Ymm:
     def __init__(self, id):
-        assert_type(id, int)
+        assert type(id) is int
         self.id = id
 
 YMM0  = Ymm(0)
@@ -460,15 +447,15 @@ ymm13 = Ymm(13)
 ymm14 = Ymm(14)
 ymm15 = Ymm(15)
 
-def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None): # returns bytes
-    assert_type(dst, [Xmm, Ymm])
-    assert_type(src1, [Xmm, Ymm, None])
-    assert_type(src2, [Xmm, Ymm])
-    assert_type(opcode, int)
-    assert_type(vex_map, VexMap)
-    assert_type(pp, VexPP)
-    assert_type(w, VexW)
-    assert_type(imm, [int, None])
+def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None):
+    assert type(dst) in [Xmm, Ymm]
+    assert type(src1) in [Xmm, Ymm, type(None)]
+    assert type(src2) in [Xmm, Ymm]
+    assert type(opcode) is int
+    assert type(vex_map) is VexMap
+    assert type(pp) is VexPP
+    assert type(w) is VexW
+    assert type(imm) in [int, type(None)]
     if dst.id < 0 or dst.id > 15:
         raise EmitterError('invalid VEX register')
     if src1 is not None and (src1.id < 0 or src1.id > 15):
@@ -492,18 +479,20 @@ def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None): # returns b
     if imm is not None and (imm > 0xFF or imm < 0):
         raise EmitterError('VEX: invalid immediate number')
     if imm is None:
-        return bytes((0xC4, byte2, byte3, opcode, mod_rm))
+        result = bytes((0xC4, byte2, byte3, opcode, mod_rm))
     else:
-        return bytes((0xC4, byte2, byte3, opcode, mod_rm, imm))
+        result = bytes((0xC4, byte2, byte3, opcode, mod_rm, imm))
+    assert type(result) is bytes
+    return result
 
-def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w): # returns bytes
-    assert_type(dst, [Mem, int])
-    assert_type(src, [int, Mem])
-    assert_type(l, VexL)
-    assert_type(opcode, int)
-    assert_type(vex_map, VexMap)
-    assert_type(pp, VexPP)
-    assert_type(w, VexW)
+def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w):
+    assert type(dst) in [Mem, int]
+    assert type(src) in [int, Mem]
+    assert type(l) is VexL
+    assert type(opcode) is int
+    assert type(vex_map) is VexMap
+    assert type(pp) is VexPP
+    assert type(w) is VexW
     if opcode < 0 or opcode > 0xFF:
         raise EmitterError('VEX opcode must fit in one byte')
     match (dst, src):
@@ -512,17 +501,19 @@ def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w): # returns bytes
                 raise EmitterError('invalid VEX register')
         case _:
             raise EmitterError('VEX r/m encoding requires one register and one memory operand')
-    encoded = encode_regmem_op(mem, reg)
+    encoded = EncodedRegMemOp(mem, reg)
     byte2 = ((~(reg >> 3) & 1) << 7) | ((~(encoded.rex >> 1) & 1) << 6) | ((~encoded.rex & 1) << 5) | vex_map.value
     byte3 = (w.value << 7) | (0b1111 << 3) | (l.value << 2) | pp.value
-    return bytes((0xC4, byte2, byte3, opcode, encoded.mod_rm)) + encoded.suffix
+    result = bytes((0xC4, byte2, byte3, opcode, encoded.mod_rm)) + encoded.suffix
+    assert type(result) is bytes
+    return result
 
 class Sib: # r64 + r64 * scale + offset
     def __init__(self, base = None, index = None, scale = 1, offset = 0):
-        assert_type(base, [Reg, None])
-        assert_type(index, [Reg, None])
-        assert_type(scale, int)
-        assert_type(offset, int)
+        assert type(base) in [Reg, type(None)]
+        assert type(index) in [Reg, type(None)]
+        assert type(scale) is int
+        assert type(offset) is int
         self.base = base
         self.index = index
         self.scale = scale
@@ -535,17 +526,17 @@ class Sib: # r64 + r64 * scale + offset
             and self.scale == other.scale and self.offset == other.offset
 
     def __add__(self, other): # returns Sib
-        assert_type(other, [Reg, Sib, int])
+        assert type(other) in [Reg, Sib, int]
         match other:
             case int() as offset:
-                return Sib(self.base, self.index, self.scale, self.offset + offset)
+                result = Sib(self.base, self.index, self.scale, self.offset + offset)
             case Reg() as reg:
                 if reg.name == RegName.RIP:
                     raise EmitterError('rip can only be added to a label')
                 if self.base is None:
-                    return Sib(reg, self.index, self.scale, self.offset)
+                    result = Sib(reg, self.index, self.scale, self.offset)
                 if self.index is None:
-                    return Sib(self.base, reg, 1, self.offset)
+                    result = Sib(self.base, reg, 1, self.offset)
                 raise EmitterError('address expression already has a base and index')
             case Sib() as sib:
                 if self.base is not None and sib.base is not None:
@@ -562,19 +553,22 @@ class Sib: # r64 + r64 * scale + offset
                 else:
                     index = sib.index
                     scale = sib.scale
-                return Sib(base, index, scale, self.offset + sib.offset)
+                result = Sib(base, index, scale, self.offset + sib.offset)
             case _:
                 raise RuntimeError('never')
+        assert type(result) is Sib
+        return result
 
     def __radd__(self, other): # returns Sib
-        assert_type(other, [Reg, Sib, int])
+        assert type(other) in [Reg, Sib, int]
         return self + other
 
-    def __sub__(self, other: int): # returns Sib
-        assert_type(other, int)
+    def __sub__(self, other): # returns Sib
+        assert type(other) is int
         return self + -other
 
-def validate_sib(sib: Sib) -> None:
+def validate_sib(sib):
+    assert type(sib) is Sib
     if sib.scale not in (1, 2, 4, 8):
         raise EmitterError('invalid SIB scale')
     if signed_bytes(sib.offset, 4) is None:
@@ -590,124 +584,140 @@ def validate_sib(sib: Sib) -> None:
     if sib.index is None and sib.scale != 1:
         raise EmitterError('SIB scale requires an index register')
 
-@dataclass
 class Rel: # relative to rip
-    label: str
+    def __init__(self, label):
+        assert type(label) is str
+        self.label = label
 
-@dataclass
+    def __eq__(self, other):
+        return type(other) == Rel and self.label == other.label
+
 class Mem:
-    size: WordSize
-    addr: Reg | Sib | Rel | Xmm | Ymm
+    def __init__(self, size, addr):
+        assert type(size) is WordSize
+        assert type(addr) in [Reg, Sib, Rel, Xmm, Ymm]
+        self.size = size
+        self.addr = addr
 
-def byte_ptr(addr: Reg | Sib | Rel) -> Mem:
+    def __eq__(self, other):
+        return type(other) == Mem and self.size == other.size and self.addr == other.addr
+
+def byte_ptr(addr):
+    assert type(addr) in [Reg, Sib, Rel]
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(BYTE, addr)
 
-def word_ptr(addr: Reg | Sib | Rel) -> Mem:
+def word_ptr(addr):
+    assert type(addr) in [Reg, Sib, Rel]
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(WORD, addr)
 
-def dword_ptr(addr: Reg | Sib | Rel) -> Mem:
+def dword_ptr(addr):
+    assert type(addr) in [Reg, Sib, Rel]
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(DWORD, addr)
 
-def qword_ptr(addr: Reg | Sib | Rel) -> Mem:
+def qword_ptr(addr):
+    assert type(addr) in [Reg, Sib, Rel]
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(QWORD, addr)
 
-def m128_ptr(addr: Reg | Sib | Rel) -> Mem:
+def m128_ptr(addr):
+    assert type(addr) in [Reg, Sib, Rel]
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(M128, addr)
 
-def m256_ptr(addr: Reg | Sib | Rel) -> Mem:
+def m256_ptr(addr):
+    assert type(addr) in [Reg, Sib, Rel]
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(M256, addr)
 
-
-@dataclass
 class MemMap:
-    ptr: int
-    size: int
+    def __init__(self, ptr, size):
+        assert type(ptr) is int
+        assert type(size) is int
+        self.ptr = ptr
+        self.size = size
 
 def close_mem_map(mapping: MemMap) -> None:
     unmap(mapping.ptr, mapping.size)
 
-@dataclass
 class EncodedRegMemOp:
-    rex: int
-    mod_rm: int
-    suffix: bytes
+    def __init__(self, mem, reg_id):
+        assert type(mem) is Mem
+        assert type(reg_id) is int
+        
+        rex = 0
+        suffix = bytearray()
 
-def encode_regmem_op(mem: Mem, reg_id: int) -> EncodedRegMemOp:
-    rex = 0
-    suffix = bytearray()
-
-    match mem.addr:
-        case Reg() as base:
-            if base == RIP or base.size != QWORD:
-                raise EmitterError('invalid base register type')
-            base_id = REG_IDS[base.name]
-            rex |= base_id >> 3
-            rm = base_id & 7
-            if rm == 4:
-                mod_rm = ((reg_id & 7) << 3) | 4
-                suffix.append(0x20 | rm)
-            elif rm == 5:
-                mod_rm = 0x40 | ((reg_id & 7) << 3) | rm
-                suffix.append(0)
-            else:
-                mod_rm = ((reg_id & 7) << 3) | rm
-
-        case Rel():
-            mod_rm = ((reg_id & 7) << 3) | 5
-            suffix.extend(b'\x00\x00\x00\x00')
-
-        case Sib():
-            validate_sib(mem.addr)
-            if mem.addr.index is None:
-                index_bits = 4
-            else:
-                index_id = REG_IDS[mem.addr.index.name]
-                index_bits = index_id & 7
-                rex |= (index_id >> 3) << 1
-
-            scale_bits = {1: 0, 2: 1, 4: 2, 8: 3}[mem.addr.scale]
-            if mem.addr.base is None:
-                displacement = signed_bytes(mem.addr.offset, 4)
-                if displacement is None:
-                    raise EmitterError('invalid displacement')
-                mod = 0
-                base_bits = 5
-            else:
-                base_id = REG_IDS[mem.addr.base.name]
-                base_bits = base_id & 7
+        match mem.addr:
+            case Reg() as base:
+                if base == RIP or base.size != QWORD:
+                    raise EmitterError('invalid base register type')
+                base_id = REG_IDS[base.name]
                 rex |= base_id >> 3
-                if mem.addr.offset == 0 and base_bits != 5:
-                    mod = 0
-                    displacement = b''
+                rm = base_id & 7
+                if rm == 4:
+                    mod_rm = ((reg_id & 7) << 3) | 4
+                    suffix.append(0x20 | rm)
+                elif rm == 5:
+                    mod_rm = 0x40 | ((reg_id & 7) << 3) | rm
+                    suffix.append(0)
                 else:
-                    displacement = signed_bytes(mem.addr.offset, 1)
-                    if displacement is not None:
-                        mod = 1
+                    mod_rm = ((reg_id & 7) << 3) | rm
+
+            case Rel():
+                mod_rm = ((reg_id & 7) << 3) | 5
+                suffix.extend(b'\x00\x00\x00\x00')
+
+            case Sib():
+                validate_sib(mem.addr)
+                if mem.addr.index is None:
+                    index_bits = 4
+                else:
+                    index_id = REG_IDS[mem.addr.index.name]
+                    index_bits = index_id & 7
+                    rex |= (index_id >> 3) << 1
+
+                scale_bits = {1: 0, 2: 1, 4: 2, 8: 3}[mem.addr.scale]
+                if mem.addr.base is None:
+                    displacement = signed_bytes(mem.addr.offset, 4)
+                    if displacement is None:
+                        raise EmitterError('invalid displacement')
+                    mod = 0
+                    base_bits = 5
+                else:
+                    base_id = REG_IDS[mem.addr.base.name]
+                    base_bits = base_id & 7
+                    rex |= base_id >> 3
+                    if mem.addr.offset == 0 and base_bits != 5:
+                        mod = 0
+                        displacement = b''
                     else:
-                        displacement = signed_bytes(mem.addr.offset, 4)
-                        if displacement is None:
-                            raise EmitterError('invalid displacement')
-                        mod = 2
+                        displacement = signed_bytes(mem.addr.offset, 1)
+                        if displacement is not None:
+                            mod = 1
+                        else:
+                            displacement = signed_bytes(mem.addr.offset, 4)
+                            if displacement is None:
+                                raise EmitterError('invalid displacement')
+                            mod = 2
 
-            mod_rm = (mod << 6) | ((reg_id & 7) << 3) | 4
-            suffix.append((scale_bits << 6) | (index_bits << 3) | base_bits)
-            suffix.extend(displacement)
-        case _:
-            raise EmitterError("cannnot use xmm or ymm registers in memreg op")
+                mod_rm = (mod << 6) | ((reg_id & 7) << 3) | 4
+                suffix.append((scale_bits << 6) | (index_bits << 3) | base_bits)
+                suffix.extend(displacement)
+            case _:
+                raise EmitterError("cannnot use xmm or ymm registers in memreg op")
 
-    return EncodedRegMemOp(rex, mod_rm, bytes(suffix))
+        self.rex = rex
+        self.mod_rm = mod_rm
+        self.suffix = bytes(suffix)
 
 class Section(Enum):
     TEXT  = 'text'
@@ -726,20 +736,17 @@ class LabelRef:
     position: int
     delta: RipDelta | LabelDelta
 
-# str is label, int and float is imm
-type Operand = Reg | Mem | Xmm | int | float | str
-
 class Emitter:
     def __init__(self):
-        self.text: bytearray = bytearray(b'')
-        self.data: bytearray = bytearray(b'')
-        self.section: Section = Section.TEXT
-        self.labels: dict[str, tuple[Section, int]] = {}
-        self.label_refs: dict[str, list[LabelRef]] ={}
-        self.mapping: MemMap | None = None
-        self.symbols: dict[str, int] | None = None
+        self.text = bytearray(b'')
+        self.data = bytearray(b'')
+        self.section = Section.TEXT
+        self.labels = {}
+        self.label_refs ={}
+        self.mapping= None
+        self.symbols = None
 
-    def add_label_ref(self, name: str, pos: int, delta: RipDelta | LabelDelta) -> None:
+    def add_label_ref(self, name: str, pos: int, delta: RipDelta | LabelDelta):
         self.label_refs.setdefault(name, []).append(LabelRef(pos, delta))
 
     def symbol(self, s: str) -> int:
@@ -942,7 +949,7 @@ class Emitter:
         else:
             rex = 0x40
         rex |= (reg_index >> 3) << 2
-        encoded = encode_regmem_op(mem, reg_index)
+        encoded = EncodedRegMemOp(mem, reg_index)
         rex |= encoded.rex
         emit_rex = rex != 0x40 or (mem.size == BYTE and reg_index >= 4)
         if emit_rex:
@@ -955,7 +962,7 @@ class Emitter:
             disp_pos = instruction_start + len(legacy_prefix) + len(rex_prefix) + len(opcode) + 1
             self.add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
-    def emit_mov_mem(self, op1: Reg | Mem, op2: Reg | Mem) -> None:
+    def emit_mov_mem(self, op1, op2) -> None:
         match (op1, op2):
             case (Reg() as reg, Mem() as mem):
                 opcode = b'\x8b'
@@ -973,7 +980,7 @@ class Emitter:
             legacy_prefix = b''
         self.emit_mem_op(reg, mem, opcode, mem.size == QWORD, legacy_prefix)
 
-    def mov(self, op1: Operand, op2: Operand) -> None:
+    def mov(self, op1, op2):
         self.require_text_section('mov')
         match(op1, op2):
             case (Reg(), Reg()):
@@ -1005,7 +1012,9 @@ class Emitter:
             case _:
                 raise EmitterError('mov: invalid form')
 
-    def movzx(self, op1: Operand, op2: Operand) -> None:
+    def movzx(self, op1, op2):
+        assert type(op1) in [Reg, Mem]
+        assert type(op2) in [Reg, Mem]
         self.require_text_section('movzx')
         if not isinstance(op1, Reg) or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movzx: destination must be a qword register')
@@ -1048,7 +1057,9 @@ class Emitter:
             case _:
                 raise EmitterError('movzx: invalid form')
 
-    def movsx(self, op1: Operand, op2: Operand) -> None:
+    def movsx(self, op1, op2):
+        assert type(op1) in [Reg, Mem]
+        assert type(op2) in [Reg, Mem]
         self.require_text_section('movsx')
         if not isinstance(op1, Reg) or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movsx: destination must be a qword register')
@@ -1085,7 +1096,7 @@ class Emitter:
             case _:
                 raise EmitterError('movsx: invalid form')
 
-    def lea(self, op1: Operand, op2: Operand) -> None:
+    def lea(self, op1, op2):
         self.require_text_section('lea')
         match (op1, op2):
             case (Reg() as dst, Mem() as mem):
@@ -1096,6 +1107,9 @@ class Emitter:
                 raise EmitterError('lea: invalid form')
 
     def emit_cmov(self, opcode: int, op1: Reg, op2: Reg) -> None:
+        assert type(opcode) is int
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.require_text_section('cmov')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('cmov: destination must be a qword register')
@@ -1110,42 +1124,68 @@ class Emitter:
         mod_rm = 0xC0 | ((dst & 7) << 3) | (src & 7)
         self.emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
 
-    def cmoveq(self, op1: Reg, op2: Reg) -> None:
+    def cmoveq(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[EQ], op1, op2)
 
-    def cmovne(self, op1: Reg, op2: Reg) -> None:
+    def cmovne(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[NE], op1, op2)
 
-    def cmovgt(self, op1: Reg, op2: Reg) -> None:
+    def cmovgt(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[GT], op1, op2)
 
-    def cmovge(self, op1: Reg, op2: Reg) -> None:
+    def cmovge(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[GE], op1, op2)
 
-    def cmovlt(self, op1: Reg, op2: Reg) -> None:
+    def cmovlt(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[LT], op1, op2)
 
-    def cmovle(self, op1: Reg, op2: Reg) -> None:
+    def cmovle(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[LE], op1, op2)
 
-    def cmovgtu(self, op1: Reg, op2: Reg) -> None:
+    def cmovgtu(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[GTU], op1, op2)
 
-    def cmovgeu(self, op1: Reg, op2: Reg) -> None:
+    def cmovgeu(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[GEU], op1, op2)
 
-    def cmovltu(self, op1: Reg, op2: Reg) -> None:
+    def cmovltu(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[LTU], op1, op2)
 
-    def cmovleu(self, op1: Reg, op2: Reg) -> None:
+    def cmovleu(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[LEU], op1, op2)
 
-    def cmovp(self, op1: Reg, op2: Reg) -> None:
+    def cmovp(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.emit_cmov(0x40 | COND_CODE_IDS[P], op1, op2)
 
-    def emit_mov_scalar_mem(self, xmm: Xmm, mem: Mem, opcode: int, prefix: bytes) -> None:
+    def emit_mov_scalar_mem(self, xmm, mem, opcode, prefix):
+        assert type(xmm) is Xmm
+        assert type(mem) is Mem
+        assert type(opcode) is int
+        assert type(prefix) is bytes
         rex = 0x40 | ((xmm.id >> 3) << 2)
-        encoded = encode_regmem_op(mem, xmm.id)
+        encoded = EncodedRegMemOp(mem, xmm.id)
         rex |= encoded.rex
         if rex != 0x40:
             rex_prefix = bytes((rex,))
@@ -1693,7 +1733,9 @@ class Emitter:
             if op2 != RDX:
                 self.mov(op2, RDX)
 
-    def idiv(self, op1: Reg, op2: Reg) -> None:
+    def idiv(self, op1, op2): # returns None
+        assert type(op1) is Reg
+        assert type(op2) is Reg
         self.require_text_section('idiv')
         self.emit_div(op1, op2, True)
 
@@ -2410,17 +2452,27 @@ class Emitter:
         require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
-    def vdpps[T: (Xmm, Ymm)](
-        self, dst: T, src1: T, src2: T, input_mask: list[bool], output_mask: list[bool],
-    ) -> None:
+    def vdpps(self, dst, src1, src2, input_mask, output_mask): # returns None
+        assert_type(dst, [Xmm, Ymm])
+        assert_type(src1, [Xmm, Ymm])
+        assert_type(src2, [Xmm, Ymm])
+        assert_type(input_mask, list)
+        assert_type(output_mask, list)
         self.require_text_section('vdpps')
         require_avx()
         if len(input_mask) != 4:
             raise EmitterError('vdpps: input mask must contain four booleans')
         if len(output_mask) != 4:
             raise EmitterError('vdpps: output mask must contain four booleans')
-        imm8 = sum(int(value) << (i + 4) for i, value in enumerate(input_mask))
-        imm8 |= sum(int(value) << i for i, value in enumerate(output_mask))
+        imm8 = 0
+        for i, value in enumerate(input_mask):
+            assert_type(value, bool)
+            imm8 += int(value) << (i + 4)
+        output_imm = 0
+        for i, value in enumerate(output_mask):
+            assert_type(value, bool)
+            output_imm += int(value) << i
+        imm8 |= output_imm
         self.emit_bytes(encode_vex(dst, src1, src2, 0x40, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     def vrcpps[T: (Xmm, Ymm)](self, dst: T, src: T) -> None:
@@ -2438,7 +2490,9 @@ class Emitter:
         require_avx()
         self.emit_bytes(b'\xc5\xf8\x77')
 
-    def vptest[T: (Xmm, Ymm)](self, op1: T, op2: T) -> None:
+    def vptest(self, op1, op2) -> None:
+        assert type(op1) in [Xmm, Ymm]
+        assert type(op1) == type(op2)
         self.require_text_section('vptest')
         require_avx()
         self.emit_bytes(encode_vex(op1, None, op2, 0x17, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
@@ -2463,16 +2517,18 @@ class Emitter:
         imm8 = sum(value << (2 * i) for i, value in enumerate(imm))
         self.emit_bytes(encode_vex(dst, src1, src2, 0xC6, VexMap.MAP_0F, VexPP.NONE, VexW.W0, imm8))
 
-    @overload
-    def vpermilps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: list[int]) -> None: ...
-
-    @overload
-    def vpermilps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T) -> None: ...
-
-    def vpermilps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T | list[int]) -> None:
+    def vpermilps(self, dst, src1, src2):
+        assert type(dst) in [Xmm, Ymm]
+        assert type(src1) in [Xmm, Ymm]
+        assert type(src2) in [Xmm, Ymm, list]
+        if type(src2) is not list:
+            assert type(dst) == type(src1) == type(src2)
+        else:
+            assert type(dst) == type(src1)
         self.require_text_section('vpermilps')
         require_avx()
         if isinstance(src2, list):
+            for value in src2: assert type(value) is int
             if len(src2) != 4 or any(value < 0 or value > 3 for value in src2):
                 raise EmitterError('vpermilps: imm must contain four integers between 0 and 3')
             imm8 = sum(value << (2 * i) for i, value in enumerate(src2))
