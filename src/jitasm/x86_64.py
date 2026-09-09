@@ -1210,7 +1210,7 @@ class Emitter:
         match (op1, op2):
             case (Xmm() as dst, Xmm() as src):
                 if dst.id < 0 or dst.id > 15 or src.id < 0 or src.id > 15:
-                    raise EmitterError(f'{name}: invalid xmm register')
+                    raise EmitterError('%s: invalid xmm register' % name)
                 rex = 0x40 | ((dst.id >> 3) << 2) | (src.id >> 3)
                 if rex != 0x40:
                     rex_prefix = bytes((rex,))
@@ -1220,14 +1220,14 @@ class Emitter:
                 self.emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x10, mod_rm)))
             case (Xmm() as dst, Mem() as mem):
                 if dst.id < 0 or dst.id > 15 or mem.size != size:
-                    raise EmitterError(f'{name}: operands have incompatible sizes')
+                    raise EmitterError('%s: operands have incompatible sizes' % name)
                 self.emit_mov_scalar_mem(dst, mem, 0x10, prefix)
             case (Mem() as mem, Xmm() as src):
                 if src.id < 0 or src.id > 15 or mem.size != size:
-                    raise EmitterError(f'{name}: operands have incompatible sizes')
+                    raise EmitterError('%s: operands have incompatible sizes' % name)
                 self.emit_mov_scalar_mem(src, mem, 0x11, prefix)
             case _:
-                raise EmitterError(f'{name}: invalid form')
+                raise EmitterError('%s: invalid form' % name)
 
     def movss_sse(self, op1, op2):
         assert type(op1) in [Xmm, Mem]
@@ -1458,9 +1458,9 @@ class Emitter:
     def emit_cvtsi2s(self, op1: Xmm, op2: Reg, prefix: bytes, name: str):
         self.require_text_section(name)
         if op1.id < 0 or op1.id > 15:
-            raise EmitterError(f'{name}: invalid xmm register')
+            raise EmitterError('%s: invalid xmm register' % name)
         if op2 == RIP or op2.size != QWORD:
-            raise EmitterError(f'{name}: source must be a qword register')
+            raise EmitterError('%s: source must be a qword register' % name)
         src = reg_id(op2)
         rex = 0x48 | ((op1.id >> 3) << 2) | (src >> 3)
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (src & 7)
@@ -1481,9 +1481,9 @@ class Emitter:
     def emit_cvtts2si(self, op1: Reg, op2: Xmm, prefix: bytes, name: str):
         self.require_text_section(name)
         if op1 == RIP or op1.size != QWORD:
-            raise EmitterError(f'{name}: destination must be a qword register')
+            raise EmitterError('%s: destination must be a qword register' % name)
         if op2.id < 0 or op2.id > 15:
-            raise EmitterError(f'{name}: invalid xmm register')
+            raise EmitterError('%s: invalid xmm register' % name)
         dst = reg_id(op1)
         rex = 0x48 | ((dst >> 3) << 2) | (op2.id >> 3)
         mod_rm = 0xC0 | ((dst & 7) << 3) | (op2.id & 7)
@@ -1503,7 +1503,7 @@ class Emitter:
 
     def emit_round_scalar(self, op1: Xmm, op2: Xmm, mode: int, opcode: int, name: str):
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
-            raise EmitterError(f'{name}: invalid xmm register')
+            raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
         if rex != 0x40:
             rex_prefix = bytes((rex,))
@@ -1922,7 +1922,7 @@ class Emitter:
     def emit_ucomis(self, x1: Xmm, x2: Xmm, prefix: bytes, name: str):
         self.require_text_section(name)
         if x1.id < 0 or x1.id > 15 or x2.id < 0 or x2.id > 15:
-            raise EmitterError(f'{name}: invalid xmm register')
+            raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((x1.id >> 3) << 2) | (x2.id >> 3)
         if rex != 0x40:
             rex_prefix = bytes((rex,))
@@ -2298,9 +2298,9 @@ class Emitter:
                 size = M256
                 opcode = store_opcode
             case _:
-                raise EmitterError(f'{name}: invalid form')
+                raise EmitterError('%s: invalid form' % name)
         if mem.size != size:
-            raise EmitterError(f'{name}: operands have incompatible sizes')
+            raise EmitterError('%s: operands have incompatible sizes' % name)
         instruction_start = self.section_offset()
         self.emit_bytes(encode_vex_rm(reg.id, mem, l, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
         if isinstance(mem.addr, Rel):
@@ -2329,7 +2329,7 @@ class Emitter:
             case (Ymm(), Ymm(), Ymm()):
                 self.emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
             case _:
-                raise EmitterError(f'{name}: invalid form')
+                raise EmitterError('%s: invalid form' % name)
 
     def vaddps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
         require_avx()
@@ -2547,7 +2547,7 @@ class Emitter:
         else:
             size = 8
         if len(mask) != size or any(value not in (1, 2) for value in mask):
-            raise EmitterError(f'vblendps: mask must contain {size} integers, each 1 or 2')
+            raise EmitterError('vblendps: mask must contain %d integers, each 1 or 2' % size)
         imm8 = sum((value - 1) << i for i, value in enumerate(mask))
         self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 

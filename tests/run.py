@@ -76,4 +76,4 @@ elif os.name == 'posix':
     test_unmap()
     test_utils()
 else:
-    raise RuntimeError(f'unsupported operating system: {os.name}')
+    raise RuntimeError('unsupported operating system: %s' % os.name)

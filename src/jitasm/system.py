@@ -6,7 +6,7 @@ import sys
 
 machine = platform.machine().lower()
 if machine not in ("amd64", "x86_64"):
-    raise RuntimeError(f"unsupported architecture: {platform.machine()}")
+    raise RuntimeError("unsupported architecture: %s" % platform.machine())
 
 # Windows
 
@@ -171,4 +171,4 @@ elif os.name == "posix":
     get_page_size = get_page_size_posix
 
 else:
-    raise RuntimeError(f"unsupported platform: {sys.platform}")
+    raise RuntimeError("unsupported platform: %s" % sys.platform)
