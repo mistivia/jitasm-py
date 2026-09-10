@@ -4,13 +4,14 @@
 import ctypes
 import struct
 from jitasm.system import memory_map, unmap, set_mem_rx, get_page_size
+from jitasm.tools import require, ensure
 from enum import Enum
 
 class CpuFeatures:
     def __init__(self, avx, avx2, fma):
-        assert type(avx)  is bool
-        assert type(avx2) is bool
-        assert type(fma)  is bool
+        require(type(avx)  is bool)
+        require(type(avx2) is bool)
+        require(type(fma)  is bool)
         self.avx  = avx
         self.avx2 = avx2
         self.fma  = fma
@@ -105,26 +106,25 @@ COND_CODE_IDS = {
     CondCode.NS: 0x9,
 }
 
+@ensure(lambda r: type(r) is CondCode)
 def xmm_cond_code(cond):
-    assert type(cond) is CondCode
+    require(type(cond) is CondCode)
     if cond is CondCode.GT:
-        result = CondCode.GTU
+        return CondCode.GTU
     elif cond is CondCode.GE:
-        result = CondCode.GEU
+        return CondCode.GEU
     elif cond is CondCode.LT:
-        result = CondCode.LTU
+        return CondCode.LTU
     elif cond is CondCode.LE:
-        result = CondCode.LEU
+        return CondCode.LEU
     elif cond in (CondCode.EQ, CondCode.NE, CondCode.P, CondCode.NP):
-        result = cond
+        return cond
     elif cond in (CondCode.GTU, CondCode.GEU, CondCode.LTU, CondCode.LEU):
         raise EmitterError('unsigned condition code cannot be used with xmm operands')
     elif cond in (CondCode.O, CondCode.NO, CondCode.S, CondCode.NS):
         raise EmitterError('overflow and sign conditions cannot be used with xmm operands')
     else:
-        assert False
-    assert type(result) is CondCode
-    return result
+        require(False)
 
 class RegName(Enum):
     RAX = 'rax'
@@ -147,25 +147,25 @@ class RegName(Enum):
 
 class Reg:
     def __init__(self, name, size):
-        assert type(name) is RegName
-        assert type(size) is WordSize
+        require(type(name) is RegName)
+        require(type(size) is WordSize)
         self.name = name
         self.size = size
 
     def __mul__(self, scale):
-        assert type(scale) is int
+        require(type(scale) is int)
         if self.name == RegName.RIP:
             raise EmitterError('rip can only be added to a label')
         return Sib(index=self, scale=scale)
 
     def __rmul__(self, scale):
-        assert type(scale) is int
+        require(type(scale) is int)
         result = self * scale
-        assert type(result) is Sib
+        require(type(result) is Sib)
         return result
 
     def __add__(self, other):
-        assert type(other) in (Reg, Sib, int, str)
+        require(type(other) in (Reg, Sib, int, str))
         if self.name == RegName.RIP:
             if type(other) is str:
                 return Rel(other)
@@ -183,16 +183,16 @@ class Reg:
             raise EmitterError('invalid register address expression')
 
     def __radd__(self, other):
-        assert type(other) is int
+        require(type(other) is int)
         if self.name == RegName.RIP:
             raise EmitterError('rip can only be added to a label')
         if type(other) is int:
             return Sib(self, offset=other)
         else:
-            assert False
+            require(False)
 
     def __sub__(self, other):
-        assert type(other) is int
+        require(type(other) is int)
         return self + -other
 
 class EmitterError(RuntimeError):
@@ -356,12 +356,12 @@ REG_IDS = {
 }
 
 def reg_id(reg):
-    assert type(reg) is Reg
+    require(type(reg) is Reg)
     return REG_IDS[reg.name]
 
 def signed_bytes(value, size):
-    assert type(value) is int
-    assert type(size) is int
+    require(type(value) is int)
+    require(type(size) is int)
     min_value = -(1 << (size * 8 - 1))
     max_value = (1 << (size * 8 - 1)) - 1
     if value < min_value or value > max_value:
@@ -370,7 +370,7 @@ def signed_bytes(value, size):
 
 class Xmm:
     def __init__(self, id):
-        assert type(id) is int
+        require(type(id) is int)
         self.id = id
 
 XMM0  = Xmm(0)
@@ -409,7 +409,7 @@ xmm15 = Xmm(15)
 
 class Ymm:
     def __init__(self, id):
-        assert type(id) is int
+        require(type(id) is int)
         self.id = id
 
 YMM0  = Ymm(0)
@@ -446,15 +446,16 @@ ymm13 = Ymm(13)
 ymm14 = Ymm(14)
 ymm15 = Ymm(15)
 
+@ensure(lambda r: type(r) is bytes)
 def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None):
-    assert type(dst)     in (Xmm, Ymm)
-    assert type(src1)    in (Xmm, Ymm, type(None))
-    assert type(src2)    in (Xmm, Ymm)
-    assert type(opcode)  is int
-    assert type(vex_map) is VexMap
-    assert type(pp)      is VexPP
-    assert type(w)       is VexW
-    assert type(imm)     in (int, type(None))
+    require(type(dst)     in (Xmm, Ymm))
+    require(type(src1)    in (Xmm, Ymm, type(None)))
+    require(type(src2)    in (Xmm, Ymm))
+    require(type(opcode)  is int)
+    require(type(vex_map) is VexMap)
+    require(type(pp)      is VexPP)
+    require(type(w)       is VexW)
+    require(type(imm)     in (int, type(None)))
     if dst.id < 0 or dst.id > 15:
         raise EmitterError('invalid VEX register')
     if src1 is not None and (src1.id < 0 or src1.id > 15):
@@ -481,17 +482,17 @@ def encode_vex(dst, src1, src2, opcode, vex_map, pp, w, imm = None):
         result = bytes((0xC4, byte2, byte3, opcode, mod_rm))
     else:
         result = bytes((0xC4, byte2, byte3, opcode, mod_rm, imm))
-    assert type(result) is bytes
     return result
 
+@ensure(lambda r: type(r) is bytes)
 def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w):
-    assert type(dst)     in (Mem, int)
-    assert type(src)     in (int, Mem)
-    assert type(l)       is VexL
-    assert type(opcode)  is int
-    assert type(vex_map) is VexMap
-    assert type(pp)      is VexPP
-    assert type(w)       is VexW
+    require(type(dst)     in (Mem, int))
+    require(type(src)     in (int, Mem))
+    require(type(l)       is VexL)
+    require(type(opcode)  is int)
+    require(type(vex_map) is VexMap)
+    require(type(pp)      is VexPP)
+    require(type(w)       is VexW)
     if opcode < 0 or opcode > 0xFF:
         raise EmitterError('VEX opcode must fit in one byte')
     if type(dst) is int and type(src) is Mem:
@@ -507,16 +508,14 @@ def encode_vex_rm(dst, src, l, opcode, vex_map, pp, w):
     encoded = EncodedRegMemOp(mem, reg)
     byte2 = ((~(reg >> 3) & 1) << 7) | ((~(encoded.rex >> 1) & 1) << 6) | ((~encoded.rex & 1) << 5) | vex_map.value
     byte3 = (w.value << 7) | (0b1111 << 3) | (l.value << 2) | pp.value
-    result = bytes((0xC4, byte2, byte3, opcode, encoded.mod_rm)) + encoded.suffix
-    assert type(result) is bytes
-    return result
+    return bytes((0xC4, byte2, byte3, opcode, encoded.mod_rm)) + encoded.suffix
 
 class Sib: # r64 + r64 * scale + offset
     def __init__(self, base = None, index = None, scale = 1, offset = 0):
-        assert type(base)   in (Reg, type(None))
-        assert type(index)  in (Reg, type(None))
-        assert type(scale)  is int
-        assert type(offset) is int
+        require(type(base)   in (Reg, type(None)))
+        require(type(index)  in (Reg, type(None)))
+        require(type(scale)  is int)
+        require(type(offset) is int)
         self.base = base
         self.index = index
         self.scale = scale
@@ -528,8 +527,9 @@ class Sib: # r64 + r64 * scale + offset
         return self.base == other.base and self.index == other.index \
             and self.scale == other.scale and self.offset == other.offset
 
+    @ensure(lambda r: type(r) is Sib)
     def __add__(self, other):
-        assert type(other) in (Reg, Sib, int)
+        require(type(other) in (Reg, Sib, int))
         if type(other) is int:
             offset = other
             result = Sib(self.base, self.index, self.scale, self.offset + offset)
@@ -561,20 +561,19 @@ class Sib: # r64 + r64 * scale + offset
                 scale = sib.scale
             result = Sib(base, index, scale, self.offset + sib.offset)
         else:
-            assert False
-        assert type(result) is Sib
+            require(False)
         return result
 
     def __radd__(self, other): # returns Sib
-        assert type(other) in (Reg, Sib, int)
+        require(type(other) in (Reg, Sib, int))
         return self + other
 
     def __sub__(self, other): # returns Sib
-        assert type(other) is int
+        require(type(other) is int)
         return self + -other
 
 def validate_sib(sib):
-    assert type(sib) is Sib
+    require(type(sib) is Sib)
     if sib.scale not in (1, 2, 4, 8):
         raise EmitterError('invalid SIB scale')
     if signed_bytes(sib.offset, 4) is None:
@@ -592,7 +591,7 @@ def validate_sib(sib):
 
 class Rel: # relative to rip
     def __init__(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.label = label
 
     def __eq__(self, other):
@@ -600,8 +599,8 @@ class Rel: # relative to rip
 
 class Mem:
     def __init__(self, size, addr):
-        assert type(size) is WordSize
-        assert type(addr) in (Reg, Sib, Rel, Xmm, Ymm)
+        require(type(size) is WordSize)
+        require(type(addr) in (Reg, Sib, Rel, Xmm, Ymm))
         self.size = size
         self.addr = addr
 
@@ -609,56 +608,56 @@ class Mem:
         return type(other) == Mem and self.size == other.size and self.addr == other.addr
 
 def byte_ptr(addr):
-    assert type(addr) in (Reg, Sib, Rel)
+    require(type(addr) in (Reg, Sib, Rel))
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(BYTE, addr)
 
 def word_ptr(addr):
-    assert type(addr) in (Reg, Sib, Rel)
+    require(type(addr) in (Reg, Sib, Rel))
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(WORD, addr)
 
 def dword_ptr(addr):
-    assert type(addr) in (Reg, Sib, Rel)
+    require(type(addr) in (Reg, Sib, Rel))
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(DWORD, addr)
 
 def qword_ptr(addr):
-    assert type(addr) in (Reg, Sib, Rel)
+    require(type(addr) in (Reg, Sib, Rel))
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(QWORD, addr)
 
 def m128_ptr(addr):
-    assert type(addr) in (Reg, Sib, Rel)
+    require(type(addr) in (Reg, Sib, Rel))
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(M128, addr)
 
 def m256_ptr(addr):
-    assert type(addr) in (Reg, Sib, Rel)
+    require(type(addr) in (Reg, Sib, Rel))
     if addr == RIP:
         raise EmitterError('rip requires a relative label')
     return Mem(M256, addr)
 
 class MemMap:
     def __init__(self, ptr, size):
-        assert type(ptr) is int
-        assert type(size) is int
+        require(type(ptr) is int)
+        require(type(size) is int)
         self.ptr = ptr
         self.size = size
 
 def close_mem_map(mapping):
-    assert type(mapping) is MemMap
+    require(type(mapping) is MemMap)
     unmap(mapping.ptr, mapping.size)
 
 class EncodedRegMemOp:
     def __init__(self, mem, reg_id):
-        assert type(mem)    is Mem
-        assert type(reg_id) is int
+        require(type(mem)    is Mem)
+        require(type(reg_id) is int)
         
         rex = 0
         suffix = bytearray()
@@ -731,18 +730,18 @@ class Section(Enum):
 
 class RipDelta:
     def __init__(self, rip):
-        assert type(rip) is int
+        require(type(rip) is int)
         self.rip = rip
 
 class LabelDelta:
     def __init__(self, base_label):
-        assert type(base_label) is str
+        require(type(base_label) is str)
         self.base_label = base_label
 
 class LabelRef:
     def __init__(self, position, delta):
-        assert type(position) is int
-        assert type(delta) in (RipDelta, LabelDelta)
+        require(type(position) is int)
+        require(type(delta) in (RipDelta, LabelDelta))
         self.position = position
         self.delta = delta
 
@@ -757,28 +756,28 @@ class Emitter:
         self.symbols = None
 
     def _add_label_ref(self, name, pos, delta):
-        assert type(name) is str
-        assert type(pos) is int
-        assert type(delta) in (RipDelta, LabelDelta)
+        require(type(name) is str)
+        require(type(pos) is int)
+        require(type(delta) in (RipDelta, LabelDelta))
         self.label_refs.setdefault(name, []).append(LabelRef(pos, delta))
 
     def symbol(self, s):
-        assert type(s) is str
+        require(type(s) is str)
         if self.symbols is None or s not in self.symbols:
             raise EmitterError('symbol not found')
         result = self.symbols[s]
-        assert type(result) is int
+        require(type(result) is int)
         return result
 
     def _emit_bytes(self, b):
-        assert type(b) is bytes
+        require(type(b) is bytes)
         if self.section == Section.TEXT:
             self.text.extend(b)
         if self.section == Section.DATA:
             self.data.extend(b)
 
     def _require_text_section(self, name):
-        assert type(name) is str
+        require(type(name) is str)
         if self.section == Section.DATA:
             raise EmitterError('%s: cannot emit code at data section' % name)
 
@@ -794,8 +793,8 @@ class Emitter:
 
         patches = []
         for name, references in self.label_refs.items():
-            assert type(name)       is str
-            assert type(references) is list
+            require(type(name)       is str)
+            require(type(references) is list)
             label = self.labels.get(name)
             if label is None:
                 close_mem_map(mapping)
@@ -830,7 +829,7 @@ class Emitter:
                         raise EmitterError('link error: offset out of range')
                     self.data[ref.position:ref.position + 4] = encoded
                 else:
-                    assert False
+                    require(False)
 
         for reference_offset, encoded in patches:
             self.text[reference_offset:reference_offset + 4] = encoded
@@ -850,9 +849,9 @@ class Emitter:
 
         symbols = {}
         for name, (section, offset) in self.labels.items():
-            assert type(name)    is str
-            assert type(section) is Section
-            assert type(offset)  is int
+            require(type(name)    is str)
+            require(type(section) is Section)
+            require(type(offset)  is int)
             if not name.startswith('.'):
                 if section == Section.TEXT:
                     base_address = text_address
@@ -867,7 +866,7 @@ class Emitter:
             self.mapping = None
 
     def align(self, numbytes):
-        assert type(numbytes) is int
+        require(type(numbytes) is int)
         if self.section != Section.DATA:
             raise EmitterError('align: must be emitted at data section')
         if numbytes <= 0:
@@ -879,7 +878,7 @@ class Emitter:
         if self.section != Section.DATA:
             raise EmitterError('db: must be emitted at data section')
         for value in values:
-            assert type(value) is int
+            require(type(value) is int)
             if value < -(1 << 7) or value >= (1 << 8):
                 raise EmitterError('db: value must fit in 8 bits')
             self._emit_bytes(bytes((value & 0xFF,)))
@@ -888,14 +887,14 @@ class Emitter:
         if self.section != Section.DATA:
             raise EmitterError('dw: must be emitted at data section')
         for value in values:
-            assert type(value) is int
+            require(type(value) is int)
             if value < -(1 << 15) or value >= (1 << 16):
                 raise EmitterError('dw: value must fit in 16 bits')
             self._emit_bytes((value & 0xFFFF).to_bytes(2, 'little'))
 
     def dd(self, *values):
         for value in values:
-            assert type(value) in (int, float, tuple)
+            require(type(value) in (int, float, tuple))
         if self.section != Section.DATA:
             raise EmitterError('dd: must be emitted at data section')
         for value in values:
@@ -915,7 +914,7 @@ class Emitter:
                 else:
                     self._emit_bytes((value & 0xFFFFFFFF).to_bytes(4, 'little'))
             else:
-                assert False
+                require(False)
 
     def dq(self, *values):
         if self.section != Section.DATA:
@@ -929,10 +928,10 @@ class Emitter:
                 else:
                     self._emit_bytes((value & 0xFFFFFFFFFFFFFFFF).to_bytes(8, 'little'))
             else:
-                assert False
+                require(False)
 
     def ascii(self, value):
-        assert type(value) is str
+        require(type(value) is str)
         if self.section != Section.DATA:
             raise EmitterError('ascii: must be emitted at data section')
         try:
@@ -942,7 +941,7 @@ class Emitter:
         self._emit_bytes(encoded)
 
     def asciz(self, value):
-        assert type(value) is str
+        require(type(value) is str)
         if self.section != Section.DATA:
             raise EmitterError('asciz: must be emitted at data section')
         try:
@@ -952,7 +951,7 @@ class Emitter:
         self._emit_bytes(encoded + b'\x00')
 
     def label(self, name):
-        assert type(name) is str
+        require(type(name) is str)
         if name in self.labels:
             raise EmitterError('label already defined')
         if self.section == Section.TEXT:
@@ -963,7 +962,7 @@ class Emitter:
             raise EmitterError('invalid section')
 
     def set_section(self, s):
-        assert type(s) is Section
+        require(type(s) is Section)
         self.section = s
 
     def _section_offset(self):
@@ -972,14 +971,14 @@ class Emitter:
         elif self.section == Section.DATA:
             return len(self.data)
         else:
-            assert False
+            require(False)
 
     def _emit_mem_op(self, reg, mem, opcode, rex_w, legacy_prefix = b''):
-        assert type(reg) is Reg
-        assert type(mem) is Mem
-        assert type(opcode) is bytes
-        assert type(rex_w) is bool
-        assert type(legacy_prefix) is bytes
+        require(type(reg) is Reg)
+        require(type(mem) is Mem)
+        require(type(opcode) is bytes)
+        require(type(rex_w) is bool)
+        require(type(legacy_prefix) is bytes)
         reg_index = reg_id(reg)
         if rex_w:
             rex = 0x48
@@ -1052,8 +1051,8 @@ class Emitter:
             raise EmitterError('mov: invalid form')
 
     def movzx(self, op1, op2):
-        assert type(op1) in (Reg, Mem)
-        assert type(op2) in (Reg, Mem)
+        require(type(op1) in (Reg, Mem))
+        require(type(op2) in (Reg, Mem))
         self._require_text_section('movzx')
         if type(op1) is not Reg or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movzx: destination must be a qword register')
@@ -1096,8 +1095,8 @@ class Emitter:
             raise EmitterError('movzx: invalid form')
 
     def movsx(self, op1, op2):
-        assert type(op1) in (Reg, Mem)
-        assert type(op2) in (Reg, Mem)
+        require(type(op1) in (Reg, Mem))
+        require(type(op2) in (Reg, Mem))
         self._require_text_section('movsx')
         if type(op1) is not Reg or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movsx: destination must be a qword register')
@@ -1145,9 +1144,9 @@ class Emitter:
             raise EmitterError('lea: invalid form')
 
     def _emit_cmov(self, opcode, op1, op2):
-        assert type(opcode) is int
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(opcode) is int)
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._require_text_section('cmov')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('cmov: destination must be a qword register')
@@ -1163,65 +1162,65 @@ class Emitter:
         self._emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
 
     def cmoveq(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[EQ], op1, op2)
 
     def cmovne(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[NE], op1, op2)
 
     def cmovgt(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[GT], op1, op2)
 
     def cmovge(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[GE], op1, op2)
 
     def cmovlt(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[LT], op1, op2)
 
     def cmovle(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[LE], op1, op2)
 
     def cmovgtu(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[GTU], op1, op2)
 
     def cmovgeu(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[GEU], op1, op2)
 
     def cmovltu(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[LTU], op1, op2)
 
     def cmovleu(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[LEU], op1, op2)
 
     def cmovp(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._emit_cmov(0x40 | COND_CODE_IDS[P], op1, op2)
 
     def _emit_mov_scalar_mem(self, xmm, mem, opcode, prefix):
-        assert type(xmm) is Xmm
-        assert type(mem) is Mem
-        assert type(opcode) is int
-        assert type(prefix) is bytes
+        require(type(xmm) is Xmm)
+        require(type(mem) is Mem)
+        require(type(opcode) is int)
+        require(type(prefix) is bytes)
         rex = 0x40 | ((xmm.id >> 3) << 2)
         encoded = EncodedRegMemOp(mem, xmm.id)
         rex |= encoded.rex
@@ -1238,9 +1237,9 @@ class Emitter:
             self._add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
     def _emit_mov_scalar(self, op1, op2, size, prefix, name):
-        assert type(size) is WordSize
-        assert type(prefix) is bytes
-        assert type(name) is str
+        require(type(size) is WordSize)
+        require(type(prefix) is bytes)
+        require(type(name) is str)
         self._require_text_section(name)
         if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
@@ -1270,14 +1269,14 @@ class Emitter:
             raise EmitterError('%s: invalid form' % name)
 
     def movss_sse(self, op1, op2):
-        assert type(op1) in (Xmm, Mem)
-        assert type(op2) in (Xmm, Mem)
+        require(type(op1) in (Xmm, Mem))
+        require(type(op2) in (Xmm, Mem))
         self._emit_mov_scalar(op1, op2, DWORD, b'\xf3', 'movss')
 
     def _emit_mov_scalar_avx(self, op1, op2, size, pp, name):
-        assert type(size) is WordSize
-        assert type(pp) is VexPP
-        assert type(name) is str
+        require(type(size) is WordSize)
+        require(type(pp) is VexPP)
+        require(type(name) is str)
         self._require_text_section(name)
         if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
@@ -1310,28 +1309,28 @@ class Emitter:
             raise EmitterError('%s: invalid form' % name)
 
     def movss_avx(self, op1, op2):
-        assert type(op1) in (Xmm, Mem)
-        assert type(op2) in (Xmm, Mem)
+        require(type(op1) in (Xmm, Mem))
+        require(type(op2) in (Xmm, Mem))
         require_avx()
         self._emit_mov_scalar_avx(op1, op2, DWORD, VexPP.PF3, 'movss')
 
     def movsd_sse(self, op1, op2):
-        assert type(op1) in (Xmm, Mem)
-        assert type(op2) in (Xmm, Mem)
+        require(type(op1) in (Xmm, Mem))
+        require(type(op2) in (Xmm, Mem))
         self._emit_mov_scalar(op1, op2, QWORD, b'\xf2', 'movsd')
 
     def movsd_avx(self, op1, op2):
-        assert type(op1) in (Xmm, Mem)
-        assert type(op2) in (Xmm, Mem)
+        require(type(op1) in (Xmm, Mem))
+        require(type(op2) in (Xmm, Mem))
         require_avx()
         self._emit_mov_scalar_avx(op1, op2, QWORD, VexPP.PF2, 'movsd')
 
     def emit_scalar_arith(self, op1, op2, opcode, prefix, name):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(opcode) is int
-        assert type(prefix) is bytes
-        assert type(name) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(opcode) is int)
+        require(type(prefix) is bytes)
+        require(type(name) is str)
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
@@ -1343,195 +1342,195 @@ class Emitter:
         self._emit_bytes(prefix + rex_prefix + bytes((0x0F, opcode, mod_rm)))
 
     def addss_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('addss')
         self.emit_scalar_arith(op1, op2, 0x58, b'\xf3', 'addss')
 
     def subss_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('subss')
         self.emit_scalar_arith(op1, op2, 0x5C, b'\xf3', 'subss')
 
     def mulss_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('mulss')
         self.emit_scalar_arith(op1, op2, 0x59, b'\xf3', 'mulss')
 
     def divss_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('divss')
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf3', 'divss')
 
     def addsd_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('addsd')
         self.emit_scalar_arith(op1, op2, 0x58, b'\xf2', 'addsd')
 
     def subsd_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('subsd')
         self.emit_scalar_arith(op1, op2, 0x5C, b'\xf2', 'subsd')
 
     def mulsd_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('mulsd')
         self.emit_scalar_arith(op1, op2, 0x59, b'\xf2', 'mulsd')
 
     def divsd_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('divsd')
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf2', 'divsd')
 
     def emit_scalar_arith_avx(self, op1, op2, opcode, pp, name):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(opcode) is int
-        assert type(pp) is VexPP
-        assert type(name) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(opcode) is int)
+        require(type(pp) is VexPP)
+        require(type(name) is str)
         self._require_text_section(name)
         self._emit_bytes(encode_vex(op1, op1, op2, opcode, VexMap.MAP_0F, pp, VexW.W0))
 
     def addss_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF3, 'addss')
 
     def subss_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF3, 'subss')
 
     def mulss_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF3, 'mulss')
 
     def divss_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF3, 'divss')
 
     def addsd_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF2, 'addsd')
 
     def subsd_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF2, 'subsd')
 
     def mulsd_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF2, 'mulsd')
 
     def divsd_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF2, 'divsd')
 
     def movss(self, op1, op2):
-        assert type(op1) in (Xmm, Mem)
-        assert type(op2) in (Xmm, Mem)
+        require(type(op1) in (Xmm, Mem))
+        require(type(op2) in (Xmm, Mem))
         if cpu_features.avx:
             self.movss_avx(op1, op2)
         else:
             self.movss_sse(op1, op2)
 
     def addss(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.addss_avx(op1, op2)
         else:
             self.addss_sse(op1, op2)
 
     def subss(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.subss_avx(op1, op2)
         else:
             self.subss_sse(op1, op2)
 
     def mulss(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.mulss_avx(op1, op2)
         else:
             self.mulss_sse(op1, op2)
 
     def divss(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.divss_avx(op1, op2)
         else:
             self.divss_sse(op1, op2)
 
     def movsd(self, op1, op2):
-        assert type(op1) in (Xmm, Mem)
-        assert type(op2) in (Xmm, Mem)
+        require(type(op1) in (Xmm, Mem))
+        require(type(op2) in (Xmm, Mem))
         if cpu_features.avx:
             self.movsd_avx(op1, op2)
         else:
             self.movsd_sse(op1, op2)
 
     def addsd(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.addsd_avx(op1, op2)
         else:
             self.addsd_sse(op1, op2)
 
     def subsd(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.subsd_avx(op1, op2)
         else:
             self.subsd_sse(op1, op2)
 
     def mulsd(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.mulsd_avx(op1, op2)
         else:
             self.mulsd_sse(op1, op2)
 
     def divsd(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.divsd_avx(op1, op2)
         else:
             self.divsd_sse(op1, op2)
 
     def emit_cvtsi2s(self, op1, op2, prefix, name):
-        assert type(op1) is Xmm
-        assert type(op2) is Reg
-        assert type(prefix) is bytes
-        assert type(name) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Reg)
+        require(type(prefix) is bytes)
+        require(type(name) is str)
         self._require_text_section(name)
         if op1.id < 0 or op1.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
@@ -1543,30 +1542,30 @@ class Emitter:
         self._emit_bytes(prefix + bytes((rex, 0x0F, 0x2A, mod_rm)))
 
     def cvtsi2ss_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Reg)
         self.emit_cvtsi2s(op1, op2, b'\xf3', 'cvtsi2ss')
 
     def cvtsi2sd_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Reg)
         self.emit_cvtsi2s(op1, op2, b'\xf2', 'cvtsi2sd')
 
     def cvtsi2ss(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Reg)
         self.cvtsi2ss_sse(op1, op2)
 
     def cvtsi2sd(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Reg)
         self.cvtsi2sd_sse(op1, op2)
 
     def emit_cvtts2si(self, op1, op2, prefix, name):
-        assert type(op1) is Reg
-        assert type(op2) is Xmm
-        assert type(prefix) is bytes
-        assert type(name) is str
+        require(type(op1) is Reg)
+        require(type(op2) is Xmm)
+        require(type(prefix) is bytes)
+        require(type(name) is str)
         self._require_text_section(name)
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('%s: destination must be a qword register' % name)
@@ -1578,31 +1577,31 @@ class Emitter:
         self._emit_bytes(prefix + bytes((rex, 0x0F, 0x2C, mod_rm)))
 
     def cvttss2si_sse(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Xmm
+        require(type(op1) is Reg)
+        require(type(op2) is Xmm)
         self.emit_cvtts2si(op1, op2, b'\xf3', 'cvttss2si')
 
     def cvttsd2si_sse(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Xmm
+        require(type(op1) is Reg)
+        require(type(op2) is Xmm)
         self.emit_cvtts2si(op1, op2, b'\xf2', 'cvttsd2si')
 
     def cvttss2si(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Xmm
+        require(type(op1) is Reg)
+        require(type(op2) is Xmm)
         self.cvttss2si_sse(op1, op2)
 
     def cvttsd2si(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Xmm
+        require(type(op1) is Reg)
+        require(type(op2) is Xmm)
         self.cvttsd2si_sse(op1, op2)
 
     def emit_round_scalar(self, op1, op2, mode, opcode, name):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(mode) is int
-        assert type(opcode) is int
-        assert type(name) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(mode) is int)
+        require(type(opcode) is int)
+        require(type(name) is str)
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
@@ -1616,181 +1615,181 @@ class Emitter:
         )
 
     def rounds_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('rounds')
         self.emit_round_scalar(op1, op2, 0, 0x0A, 'rounds')
 
     def floors_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('floors')
         self.emit_round_scalar(op1, op2, 1, 0x0A, 'floors')
 
     def ceils_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('ceils')
         self.emit_round_scalar(op1, op2, 2, 0x0A, 'ceils')
 
     def truncs_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('truncs')
         self.emit_round_scalar(op1, op2, 3, 0x0A, 'truncs')
 
     def roundd_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('roundd')
         self.emit_round_scalar(op1, op2, 0, 0x0B, 'roundd')
 
     def floord_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('floord')
         self.emit_round_scalar(op1, op2, 1, 0x0B, 'floord')
 
     def ceild_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('ceild')
         self.emit_round_scalar(op1, op2, 2, 0x0B, 'ceild')
 
     def truncd_sse(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         self._require_text_section('truncd')
         self.emit_round_scalar(op1, op2, 3, 0x0B, 'truncd')
 
     def emit_round_scalar_avx(self, op1, op2, mode, opcode, name):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(mode) is int
-        assert type(opcode) is int
-        assert type(name) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(mode) is int)
+        require(type(opcode) is int)
+        require(type(name) is str)
         self._require_text_section(name)
         self._emit_bytes(encode_vex(
             op1, op1, op2, opcode, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, mode,
         ))
 
     def rounds_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 0, 0x0A, 'rounds')
 
     def floors_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 1, 0x0A, 'floors')
 
     def ceils_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 2, 0x0A, 'ceils')
 
     def truncs_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 3, 0x0A, 'truncs')
 
     def roundd_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 0, 0x0B, 'roundd')
 
     def floord_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 1, 0x0B, 'floord')
 
     def ceild_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 2, 0x0B, 'ceild')
 
     def truncd_avx(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         require_avx()
         self.emit_round_scalar_avx(op1, op2, 3, 0x0B, 'truncd')
 
     def rounds(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.rounds_avx(op1, op2)
         else:
             self.rounds_sse(op1, op2)
 
     def floors(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.floors_avx(op1, op2)
         else:
             self.floors_sse(op1, op2)
 
     def ceils(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.ceils_avx(op1, op2)
         else:
             self.ceils_sse(op1, op2)
 
     def truncs(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.truncs_avx(op1, op2)
         else:
             self.truncs_sse(op1, op2)
 
     def roundd(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.roundd_avx(op1, op2)
         else:
             self.roundd_sse(op1, op2)
 
     def floord(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.floord_avx(op1, op2)
         else:
             self.floord_sse(op1, op2)
 
     def ceild(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.ceild_avx(op1, op2)
         else:
             self.ceild_sse(op1, op2)
 
     def truncd(self, op1, op2):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
         if cpu_features.avx:
             self.truncd_avx(op1, op2)
         else:
             self.truncd_sse(op1, op2)
 
     def emit_binary_op(self, op1, op2, opcode, imm_id):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(opcode) is int
-        assert type(imm_id) is int
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(opcode) is int)
+        require(type(imm_id) is int)
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('binary op: first operand must be a qword register')
         dst = reg_id(op1)
@@ -1811,45 +1810,45 @@ class Emitter:
             mod_rm = 0xC0 | (imm_id << 3) | (dst & 7)
             self._emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
         else:
-            assert False
+            require(False)
 
     def add(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('add')
         self.emit_binary_op(op1, op2, 0x01, 0)
 
     def sub(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('sub')
         self.emit_binary_op(op1, op2, 0x29, 5)
 
     def bitand(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('bitand')
         self.emit_binary_op(op1, op2, 0x21, 4)
 
     def bitor(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('bitor')
         self.emit_binary_op(op1, op2, 0x09, 1)
 
     def xor(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('xor')
         self.emit_binary_op(op1, op2, 0x31, 6)
 
     def bitnot(self, op):
-        assert type(op) is Reg
+        require(type(op) is Reg)
         self._require_text_section('bitnot')
         self.xor(op, -1)
 
     def neg(self, op):
-        assert type(op) is Reg
+        require(type(op) is Reg)
         self._require_text_section('neg')
         if op == RIP or op.size != QWORD:
             raise EmitterError('neg: operand must be a qword register')
@@ -1859,8 +1858,8 @@ class Emitter:
         self._emit_bytes(bytes((rex, 0xF7, mod_rm)))
 
     def imul(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('imul')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('imul: first operand must be a qword register')
@@ -1882,11 +1881,11 @@ class Emitter:
             mod_rm = 0xC0 | ((dst & 7) << 3) | (dst & 7)
             self._emit_bytes(bytes((rex, 0x69, mod_rm)) + encoded)
         else:
-            assert False
+            require(False)
 
     def emit_xchg(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         dst = reg_id(op1)
         src = reg_id(op2)
         rex = 0x48 | ((src >> 3) << 2) | (dst >> 3)
@@ -1894,9 +1893,9 @@ class Emitter:
         self._emit_bytes(bytes((rex, 0x87, mod_rm)))
 
     def emit_div(self, op1, op2, signed):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
-        assert type(signed) is bool
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
+        require(type(signed) is bool)
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('div: first operand must be a qword register')
         if op2 == RIP or op2.size != QWORD:
@@ -1942,21 +1941,21 @@ class Emitter:
                 self.mov(op2, RDX)
 
     def idiv(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._require_text_section('idiv')
         self.emit_div(op1, op2, True)
 
     def div(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) is Reg)
         self._require_text_section('div')
         self.emit_div(op1, op2, False)
 
     def emit_shift(self, op1, op2, imm_id):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(imm_id) is int
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(imm_id) is int)
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('shift: first operand must be a qword register')
         dst = reg_id(op1)
@@ -1974,40 +1973,40 @@ class Emitter:
                 raise EmitterError('shift: immediate must fit in unsigned 8 bits')
             self._emit_bytes(bytes((rex, 0xC1, mod_rm, immediate)))
         else:
-            assert False
+            require(False)
 
     def shl(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('shl')
         self.emit_shift(op1, op2, 4)
 
     def sar(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('sar')
         self.emit_shift(op1, op2, 7)
 
     def shr(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('shr')
         self.emit_shift(op1, op2, 5)
 
     def ror(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('ror')
         self.emit_shift(op1, op2, 1)
 
     def rol(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('rol')
         self.emit_shift(op1, op2, 0)
 
     def push(self, r):
-        assert type(r) is Reg
+        require(type(r) is Reg)
         self._require_text_section('push')
         if r == RIP or r.size != QWORD:
             raise EmitterError('push: operand must be a qword register')
@@ -2019,7 +2018,7 @@ class Emitter:
         self.mov(qword_ptr(RSP), r)
 
     def pop(self, r):
-        assert type(r) is Reg
+        require(type(r) is Reg)
         self._require_text_section('pop')
         if r == RIP or r.size != QWORD:
             raise EmitterError('pop: operand must be a qword register')
@@ -2040,7 +2039,7 @@ class Emitter:
         self.ret()
 
     def call(self, target):
-        assert type(target) in (str, Reg)
+        require(type(target) in (str, Reg))
         self._require_text_section('call')
         if type(target) is str:
             label = target
@@ -2059,10 +2058,10 @@ class Emitter:
             mod_rm = 0xD0 | (target_id & 7)
             self._emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
         else:
-            assert False
+            require(False)
 
     def jmp(self, target):
-        assert type(target) in (str, Reg)
+        require(type(target) in (str, Reg))
         self._require_text_section('jmp')
         if type(target) is str:
             label = target
@@ -2081,11 +2080,11 @@ class Emitter:
             mod_rm = 0xE0 | (target_id & 7)
             self._emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
         else:
-            assert False
+            require(False)
 
     def cmp(self, op1, op2):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
         self._require_text_section('cmp')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('cmp: first operand must be a qword register')
@@ -2108,13 +2107,13 @@ class Emitter:
             mod_rm = 0xF8 | (dst & 7)
             self._emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
         else:
-            assert False
+            require(False)
 
     def emit_ucomis(self, x1, x2, prefix, name):
-        assert type(x1) is Xmm
-        assert type(x2) is Xmm
-        assert type(prefix) is bytes
-        assert type(name) is str
+        require(type(x1) is Xmm)
+        require(type(x2) is Xmm)
+        require(type(prefix) is bytes)
+        require(type(name) is str)
         self._require_text_section(name)
         if x1.id < 0 or x1.id > 15 or x2.id < 0 or x2.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
@@ -2127,210 +2126,210 @@ class Emitter:
         self._emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x2E, mod_rm)))
 
     def ucomiss_sse(self, x1, x2):
-        assert type(x1) is Xmm
-        assert type(x2) is Xmm
+        require(type(x1) is Xmm)
+        require(type(x2) is Xmm)
         self.emit_ucomis(x1, x2, b'', 'ucomiss')
 
     def ucomisd_sse(self, x1, x2):
-        assert type(x1) is Xmm
-        assert type(x2) is Xmm
+        require(type(x1) is Xmm)
+        require(type(x2) is Xmm)
         self.emit_ucomis(x1, x2, b'\x66', 'ucomisd')
 
     def emit_ucomis_avx(self, x1, x2, pp, name):
-        assert type(x1) is Xmm
-        assert type(x2) is Xmm
-        assert type(pp) is VexPP
-        assert type(name) is str
+        require(type(x1) is Xmm)
+        require(type(x2) is Xmm)
+        require(type(pp) is VexPP)
+        require(type(name) is str)
         self._require_text_section(name)
         self._emit_bytes(encode_vex(x1, None, x2, 0x2E, VexMap.MAP_0F, pp, VexW.W0))
 
     def ucomiss_avx(self, x1, x2):
-        assert type(x1) is Xmm
-        assert type(x2) is Xmm
+        require(type(x1) is Xmm)
+        require(type(x2) is Xmm)
         require_avx()
         self.emit_ucomis_avx(x1, x2, VexPP.NONE, 'ucomiss')
 
     def ucomisd_avx(self, x1, x2):
-        assert type(x1) is Xmm
-        assert type(x2) is Xmm
+        require(type(x1) is Xmm)
+        require(type(x2) is Xmm)
         require_avx()
         self.emit_ucomis_avx(x1, x2, VexPP.P66, 'ucomisd')
 
     def ucomiss(self, x1, x2):
-        assert type(x1) is Xmm
-        assert type(x2) is Xmm
+        require(type(x1) is Xmm)
+        require(type(x2) is Xmm)
         if cpu_features.avx:
             self.ucomiss_avx(x1, x2)
         else:
             self.ucomiss_sse(x1, x2)
 
     def ucomisd(self, x1, x2):
-        assert type(x1) is Xmm
-        assert type(x2) is Xmm
+        require(type(x1) is Xmm)
+        require(type(x2) is Xmm)
         if cpu_features.avx:
             self.ucomisd_avx(x1, x2)
         else:
             self.ucomisd_sse(x1, x2)
 
     def jcc(self, cond, label):
-        assert type(cond) is CondCode
-        assert type(label) is str
+        require(type(cond) is CondCode)
+        require(type(label) is str)
         self._require_text_section('jcc')
         instruction_start = self._section_offset()
         self._emit_bytes(bytes((0x0F, 0x80 | COND_CODE_IDS[cond])) + b'\x00\x00\x00\x00')
         self._add_label_ref(label, instruction_start + 2, RipDelta(len(self.text)))
 
     def ja(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GTU, label)
 
     def jae(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GEU, label)
 
     def jb(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LTU, label)
 
     def jbe(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LEU, label)
 
     def jc(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LTU, label)
 
     def jnc(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GEU, label)
 
     def je(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(EQ, label)
 
     def jne(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(NE, label)
 
     def jz(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(EQ, label)
 
     def jnz(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(NE, label)
 
     def jg(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GT, label)
 
     def jge(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GE, label)
 
     def jl(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LT, label)
 
     def jle(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LE, label)
 
     def jna(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LEU, label)
 
     def jnae(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LTU, label)
 
     def jnb(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GEU, label)
 
     def jnbe(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GTU, label)
 
     def jng(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LE, label)
 
     def jnge(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LT, label)
 
     def jnl(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GE, label)
 
     def jnle(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GT, label)
 
     def jo(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(O, label)
 
     def jno(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(NO, label)
 
     def js(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(S, label)
 
     def jns(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(NS, label)
 
     def jp(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(P, label)
 
     def jpe(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(P, label)
 
     def jnp(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(NP, label)
 
     def jpo(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(NP, label)
 
     def jeq(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(EQ, label)
 
     def jgt(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GT, label)
 
     def jlt(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LT, label)
 
     def jgtu(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GTU, label)
 
     def jgeu(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(GEU, label)
 
     def jltu(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LTU, label)
 
     def jleu(self, label):
-        assert type(label) is str
+        require(type(label) is str)
         self.jcc(LEU, label)
 
     def setcc(self, cond, r):
-        assert type(cond) is CondCode
-        assert type(r) is Reg
+        require(type(cond) is CondCode)
+        require(type(r) is Reg)
         self._require_text_section('setcc')
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('setcc: destination must be a byte register')
@@ -2344,178 +2343,178 @@ class Emitter:
         self._emit_bytes(rex_prefix + bytes((0x0F, 0x90 | COND_CODE_IDS[cond], mod_rm)))
 
     def branch(self, cond, op1, op2, label):
-        assert type(cond) is CondCode
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(cond) is CondCode)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.cmp(op1, op2)
         self.jcc(cond, label)
 
     def branchs(self, cond, op1, op2, label):
-        assert type(cond) is CondCode
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(cond) is CondCode)
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         cond = xmm_cond_code(cond)
         self.ucomiss(op1, op2)
         self.jcc(cond, label)
 
     def branchd(self, cond, op1, op2, label):
-        assert type(cond) is CondCode
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(cond) is CondCode)
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         cond = xmm_cond_code(cond)
         self.ucomisd(op1, op2)
         self.jcc(cond, label)
 
     def beq(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(EQ, op1, op2, label)
 
     def bne(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(NE, op1, op2, label)
 
     def bgt(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(GT, op1, op2, label)
 
     def blt(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(LT, op1, op2, label)
 
     def bge(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(GE, op1, op2, label)
 
     def ble(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(LE, op1, op2, label)
 
     def beqs(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchs(EQ, op1, op2, label)
 
     def beqd(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchd(EQ, op1, op2, label)
 
     def bnes(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchs(NE, op1, op2, label)
 
     def bned(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchd(NE, op1, op2, label)
 
     def bgts(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchs(GT, op1, op2, label)
 
     def bgtd(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchd(GT, op1, op2, label)
 
     def blts(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchs(LT, op1, op2, label)
 
     def bltd(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchd(LT, op1, op2, label)
 
     def bges(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchs(GE, op1, op2, label)
 
     def bged(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchd(GE, op1, op2, label)
 
     def bles(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchs(LE, op1, op2, label)
 
     def bled(self, op1, op2, label):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(label) is str
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(label) is str)
         self.branchd(LE, op1, op2, label)
 
     def bgtu(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(GTU, op1, op2, label)
 
     def bltu(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(LTU, op1, op2, label)
 
     def bgeu(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(GEU, op1, op2, label)
 
     def bleu(self, op1, op2, label):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(label) is str
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(label) is str)
         self.branch(LEU, op1, op2, label)
 
     def cset(self, cond, op1, op2, r):
-        assert type(cond) is CondCode
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(cond) is CondCode)
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('cset: destination must be a byte register')
         self.cmp(op1, op2)
         self.setcc(cond, r)
 
     def csets(self, cond, op1, op2, r):
-        assert type(cond) is CondCode
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(cond) is CondCode)
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('csets: destination must be a byte register')
         cond = xmm_cond_code(cond)
@@ -2523,10 +2522,10 @@ class Emitter:
         self.setcc(cond, r)
 
     def csetd(self, cond, op1, op2, r):
-        assert type(cond) is CondCode
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(cond) is CondCode)
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('csetd: destination must be a byte register')
         cond = xmm_cond_code(cond)
@@ -2534,135 +2533,135 @@ class Emitter:
         self.setcc(cond, r)
 
     def seteq(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(EQ, op1, op2, r)
 
     def setne(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(NE, op1, op2, r)
 
     def setgt(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(GT, op1, op2, r)
 
     def setlt(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(LT, op1, op2, r)
 
     def setge(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(GE, op1, op2, r)
 
     def setle(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(LE, op1, op2, r)
 
     def seteqs(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csets(EQ, op1, op2, r)
 
     def seteqd(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csetd(EQ, op1, op2, r)
 
     def setnes(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csets(NE, op1, op2, r)
 
     def setned(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csetd(NE, op1, op2, r)
 
     def setgts(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csets(GT, op1, op2, r)
 
     def setgtd(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csetd(GT, op1, op2, r)
 
     def setlts(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csets(LT, op1, op2, r)
 
     def setltd(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csetd(LT, op1, op2, r)
 
     def setges(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csets(GE, op1, op2, r)
 
     def setged(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csetd(GE, op1, op2, r)
 
     def setles(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csets(LE, op1, op2, r)
 
     def setled(self, op1, op2, r):
-        assert type(op1) is Xmm
-        assert type(op2) is Xmm
-        assert type(r) is Reg
+        require(type(op1) is Xmm)
+        require(type(op2) is Xmm)
+        require(type(r) is Reg)
         self.csetd(LE, op1, op2, r)
 
     def setgtu(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(GTU, op1, op2, r)
 
     def setltu(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(LTU, op1, op2, r)
 
     def setgeu(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(GEU, op1, op2, r)
 
     def setleu(self, op1, op2, r):
-        assert type(op1) is Reg
-        assert type(op2) in (Reg, int)
-        assert type(r) is Reg
+        require(type(op1) is Reg)
+        require(type(op2) in (Reg, int))
+        require(type(r) is Reg)
         self.cset(LEU, op1, op2, r)
 
     def ret(self):
@@ -2674,11 +2673,11 @@ class Emitter:
         self._emit_bytes(b'\x0f\xa2')
 
     def emit_vmov(self, op1, op2, load_opcode, store_opcode, name):
-        assert type(op1) in (Xmm, Ymm, Mem)
-        assert type(op2) in (Xmm, Ymm, Mem)
-        assert type(load_opcode) is int
-        assert type(store_opcode) is int
-        assert type(name) is str
+        require(type(op1) in (Xmm, Ymm, Mem))
+        require(type(op2) in (Xmm, Ymm, Mem))
+        require(type(load_opcode) is int)
+        require(type(store_opcode) is int)
+        require(type(name) is str)
         self._require_text_section(name)
         if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
@@ -2732,11 +2731,11 @@ class Emitter:
         self.emit_vmov(op1, op2, 0x10, 0x11, 'vmovups')
 
     def emit_v_arith_ps(self, dst, src1, src2, opcode, name):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
-        assert type(opcode) is int
-        assert type(name) is str
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
+        require(type(opcode) is int)
+        require(type(name) is str)
         self._require_text_section(name)
         if type(dst) is Xmm and type(src1) is Xmm and type(src2) is Xmm:
             self._emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
@@ -2746,44 +2745,44 @@ class Emitter:
             raise EmitterError('%s: invalid form' % name)
 
     def vaddps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x58, 'vaddps')
 
     def vsubps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5C, 'vsubps')
 
     def vmulps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x59, 'vmulps')
 
     def vdivps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5E, 'vdivps')
 
     def vaddsubps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         self._require_text_section('vaddsubps')
         require_avx()
         self._emit_bytes(encode_vex(dst, src1, src2, 0xD0, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vsqrtps(self, dst, src):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) == type(dst))
         self._require_text_section('vsqrtps')
         require_avx()
         if type(dst) is Xmm and type(src) is Xmm:
@@ -2794,53 +2793,53 @@ class Emitter:
             raise EmitterError('vsqrtps: invalid form')
 
     def vmaxps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5F, 'vmaxps')
 
     def vminps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5D, 'vminps')
 
     def vandps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x54, 'vandps')
 
     def vandnps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         self._require_text_section('vandnps')
         require_avx()
         self._emit_bytes(encode_vex(dst, src1, src2, 0x55, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def vorps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x56, 'vorps')
 
     def vxorps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         self._require_text_section('vxorps')
         require_avx()
         self._emit_bytes(encode_vex(dst, src1, src2, 0x57, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def emit_vroundps(self, dst, src, mode):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) == type(dst)
-        assert type(mode) is int
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) == type(dst))
+        require(type(mode) is int)
         self._require_text_section('vroundps')
         if mode < 0 or mode > 0x0F:
             raise EmitterError('vroundps: mode must fit in 4 bits')
@@ -2856,34 +2855,34 @@ class Emitter:
             raise EmitterError('vroundps: invalid form')
 
     def vroundps(self, dst, src):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) == type(dst))
         require_avx()
         self.emit_vroundps(dst, src, 0)
 
     def vfloorps(self, dst, src):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) == type(dst))
         require_avx()
         self.emit_vroundps(dst, src, 1)
 
     def vceilps(self, dst, src):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) == type(dst))
         require_avx()
         self.emit_vroundps(dst, src, 2)
 
     def vtruncps(self, dst, src):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) == type(dst))
         require_avx()
         self.emit_vroundps(dst, src, 3)
 
     def vcmpps(self, dst, src1, src2, predicate):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
-        assert type(predicate) is int
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
+        require(type(predicate) is int)
         self._require_text_section('vcmpps')
         require_avx()
         if predicate < 0 or predicate > 7:
@@ -2900,97 +2899,97 @@ class Emitter:
             raise EmitterError('vcmpps: invalid form')
 
     def veqps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src1, src2, 0)
 
     def vltps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src1, src2, 1)
 
     def vleps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src1, src2, 2)
 
     def vunordps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src1, src2, 3)
 
     def vneps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src1, src2, 4)
 
     def vnltps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src1, src2, 5)
 
     def vnleps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src1, src2, 6)
 
     def vordps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src1, src2, 7)
 
     def vgtps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src2, src1, 1)
 
     def vgeps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         require_avx()
         self.vcmpps(dst, src2, src1, 2)
     
     def vhaddps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         self._require_text_section('vhaddps')
         require_avx()
         self._emit_bytes(encode_vex(dst, src1, src2, 0x7C, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vhsubps(self, dst, src1, src2):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
         self._require_text_section('vhsubps')
         require_avx()
         self._emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vdpps(self, dst, src1, src2, input_mask, output_mask):
-        assert type(dst)         in (Xmm, Ymm)
-        assert type(src1)        in (Xmm, Ymm)
-        assert type(src2)        in (Xmm, Ymm)
-        assert type(input_mask)  is list
-        assert type(output_mask) is list
+        require(type(dst)         in (Xmm, Ymm))
+        require(type(src1)        in (Xmm, Ymm))
+        require(type(src2)        in (Xmm, Ymm))
+        require(type(input_mask)  is list)
+        require(type(output_mask) is list)
         self._require_text_section('vdpps')
         require_avx()
         if len(input_mask) != 4:
@@ -2999,25 +2998,25 @@ class Emitter:
             raise EmitterError('vdpps: output mask must contain four booleans')
         imm8 = 0
         for i, value in enumerate(input_mask):
-            assert type(value) is bool
+            require(type(value) is bool)
             imm8 += int(value) << (i + 4)
         output_imm = 0
         for i, value in enumerate(output_mask):
-            assert type(value) is bool
+            require(type(value) is bool)
             output_imm += int(value) << i
         imm8 |= output_imm
         self._emit_bytes(encode_vex(dst, src1, src2, 0x40, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     def vrcpps(self, dst, src):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) == type(dst))
         self._require_text_section('vrcpps')
         require_avx()
         self._emit_bytes(encode_vex(dst, None, src, 0x53, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def vrsqrtps(self, dst, src):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) == type(dst)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) == type(dst))
         self._require_text_section('vrsqrtps')
         require_avx()
         self._emit_bytes(encode_vex(dst, None, src, 0x52, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
@@ -3028,17 +3027,17 @@ class Emitter:
         self._emit_bytes(b'\xc5\xf8\x77')
 
     def vptest(self, op1, op2):
-        assert type(op1) in (Xmm, Ymm)
-        assert type(op1) == type(op2)
+        require(type(op1) in (Xmm, Ymm))
+        require(type(op1) == type(op2))
         self._require_text_section('vptest')
         require_avx()
         self._emit_bytes(encode_vex(op1, None, op2, 0x17, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
 
     def vblendps(self, dst, src1, src2, mask):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
-        assert type(mask) is list
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
+        require(type(mask) is list)
         self._require_text_section('vblendps')
         require_avx()
         if type(dst) is Xmm:
@@ -3051,10 +3050,10 @@ class Emitter:
         self._emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     def vshufps(self, dst, src1, src2, imm):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src1) == type(dst)
-        assert type(src2) == type(dst)
-        assert type(imm) is list
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src1) == type(dst))
+        require(type(src2) == type(dst))
+        require(type(imm) is list)
         self._require_text_section('vshufps')
         require_avx()
         for value in imm: assert type(value) is int
@@ -3064,13 +3063,13 @@ class Emitter:
         self._emit_bytes(encode_vex(dst, src1, src2, 0xC6, VexMap.MAP_0F, VexPP.NONE, VexW.W0, imm8))
 
     def vpermilps(self, dst, src1, src2):
-        assert type(dst)  in (Xmm, Ymm)
-        assert type(src1) in (Xmm, Ymm)
-        assert type(src2) in (Xmm, Ymm, list)
+        require(type(dst)  in (Xmm, Ymm))
+        require(type(src1) in (Xmm, Ymm))
+        require(type(src2) in (Xmm, Ymm, list))
         if type(src2) is not list:
-            assert type(dst) == type(src1) == type(src2)
+            require(type(dst) == type(src1) == type(src2))
         else:
-            assert type(dst) == type(src1)
+            require(type(dst) == type(src1))
         self._require_text_section('vpermilps')
         require_avx()
         if type(src2) is list:
@@ -3084,12 +3083,12 @@ class Emitter:
 
     # zero_mask: 1 zeros the corresponding element; 0 keeps its value after insertion.
     def vinsertps(self, dst, src1, src2, count_dst, count_src, zero_mask):
-        assert type(dst) is Xmm
-        assert type(src1) is Xmm
-        assert type(src2) is Xmm
-        assert type(count_dst) is int
-        assert type(count_src) is int
-        assert type(zero_mask) is list
+        require(type(dst) is Xmm)
+        require(type(src1) is Xmm)
+        require(type(src2) is Xmm)
+        require(type(count_dst) is int)
+        require(type(count_src) is int)
+        require(type(zero_mask) is list)
         self._require_text_section('vinsertps')
         require_avx()
         if count_dst < 0 or count_dst > 3:
@@ -3103,8 +3102,8 @@ class Emitter:
         self._emit_bytes(encode_vex(dst, src1, src2, 0x21, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     def vbroadcastss(self, dst, src):
-        assert type(dst) in (Xmm, Ymm)
-        assert type(src) in (Xmm, Mem)
+        require(type(dst) in (Xmm, Ymm))
+        require(type(src) in (Xmm, Mem))
         self._require_text_section('vbroadcastss')
         require_avx()
         if type(src) is Xmm:
@@ -3115,7 +3114,7 @@ class Emitter:
             elif type(dst) is Xmm:
                 self._emit_bytes(encode_vex(dst, None, src, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
             else:
-                assert False
+                require(False)
             return
         if src.size != DWORD:
             raise EmitterError('vbroadcastss: source must be dword memory')

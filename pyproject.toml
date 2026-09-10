@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "An JIT x86-64 Assembler"
 readme = "README.md"
 license = "GPL-3.0-only"
-requires-python = ">=3.14"
+requires-python = ">=3.7"
 dependencies = []
 
 [[tool.setuptools.ext-modules]]
