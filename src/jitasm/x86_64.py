@@ -2173,7 +2173,7 @@ class Emitter:
         else:
             self.ucomisd_sse(x1, x2)
 
-    def jcc(self, cond, label):
+    def _jcc(self, cond, label):
         require(type(cond) is CondCode)
         require(type(label) is str)
         self._require_text_section('jcc')
@@ -2183,151 +2183,151 @@ class Emitter:
 
     def ja(self, label):
         require(type(label) is str)
-        self.jcc(GTU, label)
+        self._jcc(GTU, label)
 
     def jae(self, label):
         require(type(label) is str)
-        self.jcc(GEU, label)
+        self._jcc(GEU, label)
 
     def jb(self, label):
         require(type(label) is str)
-        self.jcc(LTU, label)
+        self._jcc(LTU, label)
 
     def jbe(self, label):
         require(type(label) is str)
-        self.jcc(LEU, label)
+        self._jcc(LEU, label)
 
     def jc(self, label):
         require(type(label) is str)
-        self.jcc(LTU, label)
+        self._jcc(LTU, label)
 
     def jnc(self, label):
         require(type(label) is str)
-        self.jcc(GEU, label)
+        self._jcc(GEU, label)
 
     def je(self, label):
         require(type(label) is str)
-        self.jcc(EQ, label)
+        self._jcc(EQ, label)
 
     def jne(self, label):
         require(type(label) is str)
-        self.jcc(NE, label)
+        self._jcc(NE, label)
 
     def jz(self, label):
         require(type(label) is str)
-        self.jcc(EQ, label)
+        self._jcc(EQ, label)
 
     def jnz(self, label):
         require(type(label) is str)
-        self.jcc(NE, label)
+        self._jcc(NE, label)
 
     def jg(self, label):
         require(type(label) is str)
-        self.jcc(GT, label)
+        self._jcc(GT, label)
 
     def jge(self, label):
         require(type(label) is str)
-        self.jcc(GE, label)
+        self._jcc(GE, label)
 
     def jl(self, label):
         require(type(label) is str)
-        self.jcc(LT, label)
+        self._jcc(LT, label)
 
     def jle(self, label):
         require(type(label) is str)
-        self.jcc(LE, label)
+        self._jcc(LE, label)
 
     def jna(self, label):
         require(type(label) is str)
-        self.jcc(LEU, label)
+        self._jcc(LEU, label)
 
     def jnae(self, label):
         require(type(label) is str)
-        self.jcc(LTU, label)
+        self._jcc(LTU, label)
 
     def jnb(self, label):
         require(type(label) is str)
-        self.jcc(GEU, label)
+        self._jcc(GEU, label)
 
     def jnbe(self, label):
         require(type(label) is str)
-        self.jcc(GTU, label)
+        self._jcc(GTU, label)
 
     def jng(self, label):
         require(type(label) is str)
-        self.jcc(LE, label)
+        self._jcc(LE, label)
 
     def jnge(self, label):
         require(type(label) is str)
-        self.jcc(LT, label)
+        self._jcc(LT, label)
 
     def jnl(self, label):
         require(type(label) is str)
-        self.jcc(GE, label)
+        self._jcc(GE, label)
 
     def jnle(self, label):
         require(type(label) is str)
-        self.jcc(GT, label)
+        self._jcc(GT, label)
 
     def jo(self, label):
         require(type(label) is str)
-        self.jcc(O, label)
+        self._jcc(O, label)
 
     def jno(self, label):
         require(type(label) is str)
-        self.jcc(NO, label)
+        self._jcc(NO, label)
 
     def js(self, label):
         require(type(label) is str)
-        self.jcc(S, label)
+        self._jcc(S, label)
 
     def jns(self, label):
         require(type(label) is str)
-        self.jcc(NS, label)
+        self._jcc(NS, label)
 
     def jp(self, label):
         require(type(label) is str)
-        self.jcc(P, label)
+        self._jcc(P, label)
 
     def jpe(self, label):
         require(type(label) is str)
-        self.jcc(P, label)
+        self._jcc(P, label)
 
     def jnp(self, label):
         require(type(label) is str)
-        self.jcc(NP, label)
+        self._jcc(NP, label)
 
     def jpo(self, label):
         require(type(label) is str)
-        self.jcc(NP, label)
+        self._jcc(NP, label)
 
     def jeq(self, label):
         require(type(label) is str)
-        self.jcc(EQ, label)
+        self._jcc(EQ, label)
 
     def jgt(self, label):
         require(type(label) is str)
-        self.jcc(GT, label)
+        self._jcc(GT, label)
 
     def jlt(self, label):
         require(type(label) is str)
-        self.jcc(LT, label)
+        self._jcc(LT, label)
 
     def jgtu(self, label):
         require(type(label) is str)
-        self.jcc(GTU, label)
+        self._jcc(GTU, label)
 
     def jgeu(self, label):
         require(type(label) is str)
-        self.jcc(GEU, label)
+        self._jcc(GEU, label)
 
     def jltu(self, label):
         require(type(label) is str)
-        self.jcc(LTU, label)
+        self._jcc(LTU, label)
 
     def jleu(self, label):
         require(type(label) is str)
-        self.jcc(LEU, label)
+        self._jcc(LEU, label)
 
     def setcc(self, cond, r):
         require(type(cond) is CondCode)
@@ -2350,7 +2350,7 @@ class Emitter:
         require(type(op2) in (Reg, int))
         require(type(label) is str)
         self.cmp(op1, op2)
-        self.jcc(cond, label)
+        self._jcc(cond, label)
 
     def branchs(self, cond, op1, op2, label):
         require(type(cond) is CondCode)
@@ -2359,7 +2359,7 @@ class Emitter:
         require(type(label) is str)
         cond = xmm_cond_code(cond)
         self.ucomiss(op1, op2)
-        self.jcc(cond, label)
+        self._jcc(cond, label)
 
     def branchd(self, cond, op1, op2, label):
         require(type(cond) is CondCode)
@@ -2368,7 +2368,7 @@ class Emitter:
         require(type(label) is str)
         cond = xmm_cond_code(cond)
         self.ucomisd(op1, op2)
-        self.jcc(cond, label)
+        self._jcc(cond, label)
 
     def beq(self, op1, op2, label):
         require(type(op1) is Reg)
@@ -2674,7 +2674,7 @@ class Emitter:
         self._require_text_section('cpuid')
         self._emit_bytes(b'\x0f\xa2')
 
-    def emit_vmov(self, op1, op2, load_opcode, store_opcode, name):
+    def _emit_vmov(self, op1, op2, load_opcode, store_opcode, name):
         require(type(op1) in (Xmm, Ymm, Mem))
         require(type(op2) in (Xmm, Ymm, Mem))
         require(type(load_opcode) is int)
@@ -2726,11 +2726,11 @@ class Emitter:
 
     def vmovaps(self, op1, op2):
         require_avx()
-        self.emit_vmov(op1, op2, 0x28, 0x29, 'vmovaps')
+        self._emit_vmov(op1, op2, 0x28, 0x29, 'vmovaps')
 
     def vmovups(self, op1, op2):
         require_avx()
-        self.emit_vmov(op1, op2, 0x10, 0x11, 'vmovups')
+        self._emit_vmov(op1, op2, 0x10, 0x11, 'vmovups')
 
     def emit_v_arith_ps(self, dst, src1, src2, opcode, name):
         require(type(dst) in (Xmm, Ymm))
@@ -3128,7 +3128,7 @@ class Emitter:
         if type(src.addr) is Rel:
             self._add_label_ref(src.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
-def init_cpu_features():
+def _init_cpu_features():
     global cpu_features
     e = Emitter()
 
@@ -3179,4 +3179,4 @@ def init_cpu_features():
         fma=bool(leaf1_ecx & (1 << 12)),
     )
 
-init_cpu_features()
+_init_cpu_features()
