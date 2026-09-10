@@ -37,6 +37,7 @@ elif os.name == 'posix':
     from test_simd import test_simd
     from test_unmap import test_unmap
     from test_utils import test_utils
+    from test_save_regs import test_save_regs
 
     def test_floats() -> None:
         test_cond()
@@ -75,5 +76,6 @@ elif os.name == 'posix':
     test_qsort()
     test_unmap()
     test_utils()
+    test_save_regs()
 else:
     raise RuntimeError('unsupported operating system: %s' % os.name)

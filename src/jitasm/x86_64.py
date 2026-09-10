@@ -747,6 +747,28 @@ class LabelRef:
         self.position = position
         self.delta = delta
 
+class SavedRegs:
+    def __init__(self, emitter, *args):
+        require(type(emitter) == Emitter)
+        require(len(args) > 0)
+        self.emitter = emitter
+        self.regs = []
+        for arg in args:
+            require(type(arg) == Reg)
+            self.regs.append(arg)
+        # 16B align
+        if len(self.regs) % 2 == 1:
+            self.regs.append(args[0])
+    
+    def __enter__(self):
+        for r in self.regs:
+            self.emitter.push(r)
+
+    def __exit__(self, *args):
+        self.regs.reverse()
+        for r in self.regs:
+            self.emitter.pop(r)
+
 class Emitter:
     def __init__(self):
         self.text = bytearray(b'')
@@ -2034,6 +2056,9 @@ class Emitter:
     def begin(self):
         self.push(RBP)
         self.mov(RBP, RSP)
+    
+    def save_regs(self, *regs):
+        return SavedRegs(self, *regs)
 
     def end(self):
         self.mov(RSP, RBP)
@@ -3180,3 +3205,4 @@ def _init_cpu_features():
     )
 
 _init_cpu_features()
+

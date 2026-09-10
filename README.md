@@ -89,6 +89,30 @@ e.finalize()
 assert ccall(e.symbol('add_two'), 20, 22) == 42
 ```
 
+## Save Registers on Stack Using `with`
+
+```py
+with e.save_regs(rax, rbx, rcx, rdx):
+    do_something()
+```
+
+will generate code like this:
+
+```asm
+push rax
+push rbx
+push rcx
+push rdx
+
+do_something
+
+pop rdx
+pop rcx
+pop rbx
+pop rax
+
+```
+
 ## Assembly Spec
 
 ```
