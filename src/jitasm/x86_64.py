@@ -122,7 +122,7 @@ def xmm_cond_code(cond):
     elif cond in (CondCode.O, CondCode.NO, CondCode.S, CondCode.NS):
         raise EmitterError('overflow and sign conditions cannot be used with xmm operands')
     else:
-        raise RuntimeError('never')
+        assert False
 
 class RegName(Enum):
     RAX = 'rax'
@@ -185,7 +185,7 @@ class Reg:
         if type(other) is int:
             return Sib(self, offset=other)
         else:
-            raise RuntimeError('never')
+            assert False
 
     def __sub__(self, other):
         assert type(other) is int
@@ -557,7 +557,7 @@ class Sib: # r64 + r64 * scale + offset
                 scale = sib.scale
             result = Sib(base, index, scale, self.offset + sib.offset)
         else:
-            raise RuntimeError('never')
+            assert False
         assert type(result) is Sib
         return result
 
@@ -761,7 +761,8 @@ class Emitter:
         assert type(result) is int
         return result
 
-    def emit_bytes(self, b: bytes):
+    def emit_bytes(self, b):
+        assert type(b) is bytes
         if self.section == Section.TEXT:
             self.text.extend(b)
         if self.section == Section.DATA:
@@ -781,8 +782,10 @@ class Emitter:
         text_address = mapping_address
         data_address = mapping_address + text_size
 
-        patches: list[tuple[int, bytes]] = []
+        patches = []
         for name, references in self.label_refs.items():
+            assert type(name)       is str
+            assert type(references) is list
             label = self.labels.get(name)
             if label is None:
                 close_mem_map(mapping)
@@ -817,7 +820,7 @@ class Emitter:
                         raise EmitterError('link error: offset out of range')
                     self.data[ref.position:ref.position + 4] = encoded
                 else:
-                    raise RuntimeError('never')
+                    assert False
 
         for reference_offset, encoded in patches:
             self.text[reference_offset:reference_offset + 4] = encoded
@@ -835,8 +838,11 @@ class Emitter:
             close_mem_map(self.mapping)
         self.mapping = mapping
 
-        symbols: dict[str, int] = {}
+        symbols = {}
         for name, (section, offset) in self.labels.items():
+            assert type(name)    is str
+            assert type(section) is Section
+            assert type(offset)  is int
             if not name.startswith('.'):
                 if section == Section.TEXT:
                     base_address = text_address
@@ -868,10 +874,11 @@ class Emitter:
                 raise EmitterError('db: value must fit in 8 bits')
             self.emit_bytes(bytes((value & 0xFF,)))
 
-    def dw(self, *values: int):
+    def dw(self, *values):
         if self.section != Section.DATA:
             raise EmitterError('dw: must be emitted at data section')
         for value in values:
+            assert type(value) is int
             if value < -(1 << 15) or value >= (1 << 16):
                 raise EmitterError('dw: value must fit in 16 bits')
             self.emit_bytes((value & 0xFFFF).to_bytes(2, 'little'))
@@ -885,29 +892,35 @@ class Emitter:
                     self.emit_bytes(struct.pack('<f', value))
                 except OverflowError:
                     raise EmitterError('dd: float must fit in 32 bits') from None
-                continue
-            if type(value) is tuple and len(value) == 2 and type(value[0]) is str and type(value[1]) is str:
+            elif type(value) is tuple and len(value) == 2 and type(value[0]) is str and type(value[1]) is str:
                 target_label = value[0]
                 base_label = value[1]
                 self.add_label_ref(target_label, len(self.data), LabelDelta(base_label))
                 self.emit_bytes(b'\x00\x00\x00\x00')
-                continue
-            if value < -(1 << 31) or value >= (1 << 32):
-                raise EmitterError('dd: value must fit in 32 bits')
-            self.emit_bytes((value & 0xFFFFFFFF).to_bytes(4, 'little'))
+            elif type(value) is int:
+                if value < -(1 << 31) or value >= (1 << 32):
+                    raise EmitterError('dd: value must fit in 32 bits')
+                else:
+                    self.emit_bytes((value & 0xFFFFFFFF).to_bytes(4, 'little'))
+            else:
+                assert False
 
-    def dq(self, *values: int | float):
+    def dq(self, *values):
         if self.section != Section.DATA:
             raise EmitterError('dq: must be emitted at data section')
         for value in values:
             if type(value) is float:
                 self.emit_bytes(struct.pack('<d', value))
-                continue
-            if value < -(1 << 63) or value >= (1 << 64):
-                raise EmitterError('dq: value must fit in 64 bits')
-            self.emit_bytes((value & 0xFFFFFFFFFFFFFFFF).to_bytes(8, 'little'))
+            elif type(value) is int:
+                if value < -(1 << 63) or value >= (1 << 64):
+                    raise EmitterError('dq: value must fit in 64 bits')
+                else:
+                    self.emit_bytes((value & 0xFFFFFFFFFFFFFFFF).to_bytes(8, 'little'))
+            else:
+                assert False
 
-    def ascii(self, value: str):
+    def ascii(self, value):
+        assert type(value) is str
         if self.section != Section.DATA:
             raise EmitterError('ascii: must be emitted at data section')
         try:
@@ -916,7 +929,8 @@ class Emitter:
             raise EmitterError('ascii: value must contain only ASCII characters') from None
         self.emit_bytes(encoded)
 
-    def asciz(self, value: str):
+    def asciz(self, value):
+        assert type(value) is str
         if self.section != Section.DATA:
             raise EmitterError('asciz: must be emitted at data section')
         try:
@@ -925,7 +939,8 @@ class Emitter:
             raise EmitterError('asciz: value must contain only ASCII characters') from None
         self.emit_bytes(encoded + b'\x00')
 
-    def label(self, name: str):
+    def label(self, name):
+        assert type(name) is str
         if name in self.labels:
             raise EmitterError('label already defined')
         if self.section == Section.TEXT:
@@ -935,7 +950,8 @@ class Emitter:
         else:
             raise EmitterError('invalid section')
 
-    def set_section(self, s: Section):
+    def set_section(self, s):
+        assert type(s) is Section
         self.section = s
 
     def section_offset(self):
@@ -943,14 +959,12 @@ class Emitter:
             return len(self.text)
         return len(self.data)
 
-    def emit_mem_op(
-        self,
-        reg: Reg,
-        mem: Mem,
-        opcode: bytes,
-        rex_w: bool,
-        legacy_prefix: bytes = b'',
-    ):
+    def emit_mem_op(self, reg, mem, opcode, rex_w, legacy_prefix = b''):
+        assert type(reg) is Reg
+        assert type(mem) is Mem
+        assert type(opcode) is bytes
+        assert type(rex_w) is bool
+        assert type(legacy_prefix) is bytes
         reg_index = reg_id(reg)
         if rex_w:
             rex = 0x48
@@ -1115,7 +1129,7 @@ class Emitter:
         else:
             raise EmitterError('lea: invalid form')
 
-    def emit_cmov(self, opcode: int, op1: Reg, op2: Reg):
+    def emit_cmov(self, opcode, op1, op2):
         assert type(opcode) is int
         assert type(op1) is Reg
         assert type(op2) is Reg
@@ -1208,7 +1222,10 @@ class Emitter:
             disp_pos = instruction_start + len(prefix) + len(rex_prefix) + 3
             self.add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
-    def emit_mov_scalar(self, op1: Operand, op2: Operand, size: WordSize, prefix: bytes, name: str):
+    def emit_mov_scalar(self, op1, op2, size, prefix, name):
+        assert type(size) is WordSize
+        assert type(prefix) is bytes
+        assert type(name) is str
         self.require_text_section(name)
         if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
@@ -1295,6 +1312,7 @@ class Emitter:
         self.emit_mov_scalar_avx(op1, op2, QWORD, VexPP.PF2, 'movsd')
 
     def emit_scalar_arith(self, op1: Xmm, op2: Xmm, opcode: int, prefix: bytes, name: str):
+        # TODO: delete type annotation and add type assertion
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
@@ -1354,6 +1372,7 @@ class Emitter:
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf2', 'divsd')
 
     def emit_scalar_arith_avx(self, op1: Xmm, op2: Xmm, opcode: int, pp: VexPP, name: str):
+        # TODO: delete type annotation and add type assertion
         self.require_text_section(name)
         self.emit_bytes(encode_vex(op1, op1, op2, opcode, VexMap.MAP_0F, pp, VexW.W0))
 
@@ -1406,30 +1425,35 @@ class Emitter:
         self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF2, 'divsd')
 
     def movss(self, op1: Operand, op2: Operand):
+        # TODO: delete type annotation and add type assertion
         if cpu_features.avx:
             self.movss_avx(op1, op2)
         else:
             self.movss_sse(op1, op2)
 
     def addss(self, op1: Xmm, op2: Xmm):
+        # TODO: delete type annotation and add type assertion
         if cpu_features.avx:
             self.addss_avx(op1, op2)
         else:
             self.addss_sse(op1, op2)
 
     def subss(self, op1: Xmm, op2: Xmm):
+        # TODO: delete type annotation and add type assertion
         if cpu_features.avx:
             self.subss_avx(op1, op2)
         else:
             self.subss_sse(op1, op2)
 
     def mulss(self, op1: Xmm, op2: Xmm):
+        # TODO: delete type annotation and add type assertion
         if cpu_features.avx:
             self.mulss_avx(op1, op2)
         else:
             self.mulss_sse(op1, op2)
 
     def divss(self, op1: Xmm, op2: Xmm):
+        # TODO: delete type annotation and add type assertion
         if cpu_features.avx:
             self.divss_avx(op1, op2)
         else:
@@ -1676,7 +1700,7 @@ class Emitter:
             mod_rm = 0xC0 | (imm_id << 3) | (dst & 7)
             self.emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
         else:
-            raise RuntimeError('never')
+            assert False
 
     def add(self, op1: Reg, op2: Reg | int):
         self.require_text_section('add')
@@ -1733,7 +1757,7 @@ class Emitter:
             mod_rm = 0xC0 | ((dst & 7) << 3) | (dst & 7)
             self.emit_bytes(bytes((rex, 0x69, mod_rm)) + encoded)
         else:
-            raise RuntimeError('never')
+            assert False
 
     def emit_xchg(self, op1: Reg, op2: Reg):
         dst = reg_id(op1)
@@ -1815,7 +1839,7 @@ class Emitter:
                 raise EmitterError('shift: immediate must fit in unsigned 8 bits')
             self.emit_bytes(bytes((rex, 0xC1, mod_rm, immediate)))
         else:
-            raise RuntimeError('never')
+            assert False
 
     def shl(self, op1: Reg, op2: Reg | int):
         self.require_text_section('shl')
@@ -1887,7 +1911,7 @@ class Emitter:
             mod_rm = 0xD0 | (target_id & 7)
             self.emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
         else:
-            raise RuntimeError('never')
+            assert False
 
     def jmp(self, target: str | Reg):
         self.require_text_section('jmp')
@@ -1908,7 +1932,7 @@ class Emitter:
             mod_rm = 0xE0 | (target_id & 7)
             self.emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
         else:
-            raise RuntimeError('never')
+            assert False
 
     def cmp(self, op1: Reg, op2: Reg | int):
         self.require_text_section('cmp')
@@ -1933,7 +1957,7 @@ class Emitter:
             mod_rm = 0xF8 | (dst & 7)
             self.emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
         else:
-            raise RuntimeError('never')
+            assert False
 
     def emit_ucomis(self, x1: Xmm, x2: Xmm, prefix: bytes, name: str):
         self.require_text_section(name)
