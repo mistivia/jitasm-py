@@ -3050,6 +3050,7 @@ class Emitter:
         assert type(imm) is list
         self.require_text_section('vshufps')
         require_avx()
+        for value in imm: assert type(value) is int
         if len(imm) != 4 or any(value < 0 or value > 3 for value in imm):
             raise EmitterError('vshufps: imm must contain four integers between 0 and 3')
         imm8 = sum(value << (2 * i) for i, value in enumerate(imm))
