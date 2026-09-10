@@ -1472,37 +1472,51 @@ class Emitter:
         else:
             self.divss_sse(op1, op2)
 
-    def movsd(self, op1: Operand, op2: Operand):
+    def movsd(self, op1, op2):
+        assert type(op1) in (Xmm, Mem)
+        assert type(op2) in (Xmm, Mem)
         if cpu_features.avx:
             self.movsd_avx(op1, op2)
         else:
             self.movsd_sse(op1, op2)
 
-    def addsd(self, op1: Xmm, op2: Xmm):
+    def addsd(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         if cpu_features.avx:
             self.addsd_avx(op1, op2)
         else:
             self.addsd_sse(op1, op2)
 
-    def subsd(self, op1: Xmm, op2: Xmm):
+    def subsd(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         if cpu_features.avx:
             self.subsd_avx(op1, op2)
         else:
             self.subsd_sse(op1, op2)
 
-    def mulsd(self, op1: Xmm, op2: Xmm):
+    def mulsd(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         if cpu_features.avx:
             self.mulsd_avx(op1, op2)
         else:
             self.mulsd_sse(op1, op2)
 
-    def divsd(self, op1: Xmm, op2: Xmm):
+    def divsd(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         if cpu_features.avx:
             self.divsd_avx(op1, op2)
         else:
             self.divsd_sse(op1, op2)
 
-    def emit_cvtsi2s(self, op1: Xmm, op2: Reg, prefix: bytes, name: str):
+    def emit_cvtsi2s(self, op1, op2, prefix, name):
+        assert type(op1) is Xmm
+        assert type(op2) is Reg
+        assert type(prefix) is bytes
+        assert type(name) is str
         self.require_text_section(name)
         if op1.id < 0 or op1.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
@@ -1513,19 +1527,31 @@ class Emitter:
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (src & 7)
         self.emit_bytes(prefix + bytes((rex, 0x0F, 0x2A, mod_rm)))
 
-    def cvtsi2ss_sse(self, op1: Xmm, op2: Reg):
+    def cvtsi2ss_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Reg
         self.emit_cvtsi2s(op1, op2, b'\xf3', 'cvtsi2ss')
 
-    def cvtsi2sd_sse(self, op1: Xmm, op2: Reg):
+    def cvtsi2sd_sse(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Reg
         self.emit_cvtsi2s(op1, op2, b'\xf2', 'cvtsi2sd')
 
-    def cvtsi2ss(self, op1: Xmm, op2: Reg):
+    def cvtsi2ss(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Reg
         self.cvtsi2ss_sse(op1, op2)
 
-    def cvtsi2sd(self, op1: Xmm, op2: Reg):
+    def cvtsi2sd(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Reg
         self.cvtsi2sd_sse(op1, op2)
 
-    def emit_cvtts2si(self, op1: Reg, op2: Xmm, prefix: bytes, name: str):
+    def emit_cvtts2si(self, op1, op2, prefix, name):
+        assert type(op1) is Reg
+        assert type(op2) is Xmm
+        assert type(prefix) is bytes
+        assert type(name) is str
         self.require_text_section(name)
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('%s: destination must be a qword register' % name)
@@ -1536,19 +1562,32 @@ class Emitter:
         mod_rm = 0xC0 | ((dst & 7) << 3) | (op2.id & 7)
         self.emit_bytes(prefix + bytes((rex, 0x0F, 0x2C, mod_rm)))
 
-    def cvttss2si_sse(self, op1: Reg, op2: Xmm):
+    def cvttss2si_sse(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Xmm
         self.emit_cvtts2si(op1, op2, b'\xf3', 'cvttss2si')
 
-    def cvttsd2si_sse(self, op1: Reg, op2: Xmm):
+    def cvttsd2si_sse(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Xmm
         self.emit_cvtts2si(op1, op2, b'\xf2', 'cvttsd2si')
 
-    def cvttss2si(self, op1: Reg, op2: Xmm):
+    def cvttss2si(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Xmm
         self.cvttss2si_sse(op1, op2)
 
-    def cvttsd2si(self, op1: Reg, op2: Xmm):
+    def cvttsd2si(self, op1, op2):
+        assert type(op1) is Reg
+        assert type(op2) is Xmm
         self.cvttsd2si_sse(op1, op2)
 
-    def emit_round_scalar(self, op1: Xmm, op2: Xmm, mode: int, opcode: int, name: str):
+    def emit_round_scalar(self, op1, op2, mode, opcode, name):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
+        assert type(mode) is int
+        assert type(opcode) is int
+        assert type(name) is str
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
@@ -2318,14 +2357,12 @@ class Emitter:
         self.require_text_section('cpuid')
         self.emit_bytes(b'\x0f\xa2')
 
-    def emit_vmov(
-        self,
-        op1: Xmm | Ymm | Mem,
-        op2: Xmm | Ymm | Mem,
-        load_opcode: int,
-        store_opcode: int,
-        name: str,
-    ):
+    def emit_vmov(self, op1, op2, load_opcode, store_opcode, name):
+        assert type(op1) in (Xmm, Ymm, Mem)
+        assert type(op2) in (Xmm, Ymm, Mem)
+        assert type(load_opcode) is int
+        assert type(store_opcode) is int
+        assert type(name) is str
         self.require_text_section(name)
         if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
@@ -2370,22 +2407,20 @@ class Emitter:
         if type(mem.addr) is Rel:
             self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
-    def vmovaps(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem):
+    def vmovaps(self, op1, op2):
         require_avx()
         self.emit_vmov(op1, op2, 0x28, 0x29, 'vmovaps')
 
-    def vmovups(self, op1: Xmm | Ymm | Mem, op2: Xmm | Ymm | Mem):
+    def vmovups(self, op1, op2):
         require_avx()
         self.emit_vmov(op1, op2, 0x10, 0x11, 'vmovups')
 
-    def emit_v_arith_ps[T: (Xmm, Ymm)](
-        self,
-        dst: T,
-        src1: T,
-        src2: T,
-        opcode: int,
-        name: str,
-    ):
+    def emit_v_arith_ps(self, dst, src1, src2, opcode, name):
+        assert type(dst) in (Xmm, Ymm)
+        assert type(src1) == type(dst)
+        assert type(src2) == type(dst)
+        assert type(opcode) is int
+        assert type(name) is str
         self.require_text_section(name)
         if type(dst) is Xmm and type(src1) is Xmm and type(src2) is Xmm:
             self.emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
@@ -2394,15 +2429,15 @@ class Emitter:
         else:
             raise EmitterError('%s: invalid form' % name)
 
-    def vaddps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
+    def vaddps(self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x58, 'vaddps')
 
-    def vsubps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
+    def vsubps(self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x5C, 'vsubps')
 
-    def vmulps[T: (Xmm, Ymm)](self, dst: T, src1: T, src2: T):
+    def vmulps(self, dst: T, src1: T, src2: T):
         require_avx()
         self.emit_v_arith_ps(dst, src1, src2, 0x59, 'vmulps')
 
@@ -2415,7 +2450,9 @@ class Emitter:
         require_avx()
         self.emit_bytes(encode_vex(dst, src1, src2, 0xD0, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
-    def vsqrtps[T: (Xmm, Ymm)](self, dst: T, src: T):
+    def vsqrtps(self, dst, src):
+        assert type(dst) in (Xmm, Ymm)
+        assert type(src) == type(dst)
         self.require_text_section('vsqrtps')
         require_avx()
         if type(dst) is Xmm and type(src) is Xmm:
