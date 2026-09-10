@@ -1271,10 +1271,7 @@ class Emitter:
             if src.id < 0 or src.id > 15 or mem.size != size:
                 raise EmitterError('%s: operands have incompatible sizes' % name)
             instruction_start = self.section_offset()
-            self.emit_bytes(encode_vex_rm(
-                mem, src.id, VexL.L128, 0x11,
-                VexMap.MAP_0F, pp, VexW.W0,
-            ))
+            self.emit_bytes(encode_vex_rm(mem, src.id, VexL.L128, 0x11,VexMap.MAP_0F, pp, VexW.W0))
             if type(mem.addr) is Rel:
                 self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
         else:
