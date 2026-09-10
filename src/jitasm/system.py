@@ -53,7 +53,8 @@ if sys.platform == "win32":
         ctypes.c_size_t,
     ]
 
-    def mmap_windows(size: int) -> int:
+    def mmap_windows(size):
+        assert type(size) is int
         ptr = kernel32.VirtualAlloc(
             None,
             size,
@@ -67,7 +68,9 @@ if sys.platform == "win32":
 
         return ptr
 
-    def unmap_windows(ptr: int, size: int) -> None:
+    def unmap_windows(ptr, size):
+        assert type(ptr) is int
+        assert type(size) is int
         if not kernel32.VirtualFree(
             ctypes.c_void_p(ptr),
             0,
@@ -76,7 +79,9 @@ if sys.platform == "win32":
             err = ctypes.get_last_error()
             raise OSError(err, os.strerror(err))
 
-    def set_mem_rx_windows(ptr: int, size: int) -> int:
+    def set_mem_rx_windows(ptr, size):
+        assert type(ptr) is int
+        assert type(size) is int
         old_protect = ctypes.c_ulong()
 
         if not kernel32.VirtualProtect(
@@ -95,7 +100,7 @@ if sys.platform == "win32":
             return -1
         return 0
 
-    def get_page_size_windows() -> int:
+    def get_page_size_windows():
         return mmap.PAGESIZE
 
     memory_map = mmap_windows
@@ -131,7 +136,8 @@ elif os.name == "posix":
         ctypes.c_int,
     ]
 
-    def mmap_posix(size: int) -> int:
+    def mmap_posix(size):
+        assert type(size) is int
         ptr = libc.mmap(
             None,
             size,
@@ -147,7 +153,9 @@ elif os.name == "posix":
 
         return ptr
 
-    def unmap_posix(ptr: int, size: int) -> None:
+    def unmap_posix(ptr, size):
+        assert type(ptr) is int
+        assert type(size) is int
         if libc.munmap(
             ctypes.c_void_p(ptr),
             size,
@@ -155,14 +163,16 @@ elif os.name == "posix":
             err = ctypes.get_errno()
             raise OSError(err, os.strerror(err))
 
-    def set_mem_rx_posix(ptr: int, size: int) -> int:
+    def set_mem_rx_posix(ptr, size):
+        assert type(ptr) is int
+        assert type(size) is int
         return libc.mprotect(
             ctypes.c_void_p(ptr),
             size,
             mmap.PROT_READ | mmap.PROT_EXEC,
         )
 
-    def get_page_size_posix() -> int:
+    def get_page_size_posix():
         return mmap.PAGESIZE
 
     memory_map = mmap_posix
