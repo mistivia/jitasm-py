@@ -564,11 +564,13 @@ class Sib: # r64 + r64 * scale + offset
             require(False)
         return result
 
-    def __radd__(self, other): # returns Sib
+    @ensure(lambda r: type(r) is Sib)
+    def __radd__(self, other):
         require(type(other) in (Reg, Sib, int))
         return self + other
 
-    def __sub__(self, other): # returns Sib
+    @ensure(lambda r: type(r) is Sib)
+    def __sub__(self, other):
         require(type(other) is int)
         return self + -other
 
@@ -1268,7 +1270,7 @@ class Emitter:
         else:
             raise EmitterError('%s: invalid form' % name)
 
-    def movss_sse(self, op1, op2):
+    def _movss_sse(self, op1, op2):
         require(type(op1) in (Xmm, Mem))
         require(type(op2) in (Xmm, Mem))
         self._emit_mov_scalar(op1, op2, DWORD, b'\xf3', 'movss')
@@ -1308,7 +1310,7 @@ class Emitter:
         else:
             raise EmitterError('%s: invalid form' % name)
 
-    def movss_avx(self, op1, op2):
+    def _movss_avx(self, op1, op2):
         require(type(op1) in (Xmm, Mem))
         require(type(op2) in (Xmm, Mem))
         require_avx()
@@ -1389,7 +1391,7 @@ class Emitter:
         self._require_text_section('divsd')
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf2', 'divsd')
 
-    def emit_scalar_arith_avx(self, op1, op2, opcode, pp, name):
+    def _emit_scalar_arith_avx(self, op1, op2, opcode, pp, name):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require(type(opcode) is int)
@@ -1402,57 +1404,57 @@ class Emitter:
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF3, 'addss')
+        self._emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF3, 'addss')
 
     def subss_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF3, 'subss')
+        self._emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF3, 'subss')
 
     def mulss_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF3, 'mulss')
+        self._emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF3, 'mulss')
 
     def divss_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF3, 'divss')
+        self._emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF3, 'divss')
 
     def addsd_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF2, 'addsd')
+        self._emit_scalar_arith_avx(op1, op2, 0x58, VexPP.PF2, 'addsd')
 
     def subsd_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF2, 'subsd')
+        self._emit_scalar_arith_avx(op1, op2, 0x5C, VexPP.PF2, 'subsd')
 
     def mulsd_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF2, 'mulsd')
+        self._emit_scalar_arith_avx(op1, op2, 0x59, VexPP.PF2, 'mulsd')
 
     def divsd_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF2, 'divsd')
+        self._emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF2, 'divsd')
 
     def movss(self, op1, op2):
         require(type(op1) in (Xmm, Mem))
         require(type(op2) in (Xmm, Mem))
         if cpu_features.avx:
-            self.movss_avx(op1, op2)
+            self._movss_avx(op1, op2)
         else:
-            self.movss_sse(op1, op2)
+            self._movss_sse(op1, op2)
 
     def addss(self, op1, op2):
         require(type(op1) is Xmm)
@@ -1596,7 +1598,7 @@ class Emitter:
         require(type(op2) is Xmm)
         self.cvttsd2si_sse(op1, op2)
 
-    def emit_round_scalar(self, op1, op2, mode, opcode, name):
+    def _emit_round_scalar(self, op1, op2, mode, opcode, name):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require(type(mode) is int)
@@ -1618,51 +1620,51 @@ class Emitter:
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         self._require_text_section('rounds')
-        self.emit_round_scalar(op1, op2, 0, 0x0A, 'rounds')
+        self._emit_round_scalar(op1, op2, 0, 0x0A, 'rounds')
 
     def floors_sse(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         self._require_text_section('floors')
-        self.emit_round_scalar(op1, op2, 1, 0x0A, 'floors')
+        self._emit_round_scalar(op1, op2, 1, 0x0A, 'floors')
 
     def ceils_sse(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         self._require_text_section('ceils')
-        self.emit_round_scalar(op1, op2, 2, 0x0A, 'ceils')
+        self._emit_round_scalar(op1, op2, 2, 0x0A, 'ceils')
 
     def truncs_sse(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         self._require_text_section('truncs')
-        self.emit_round_scalar(op1, op2, 3, 0x0A, 'truncs')
+        self._emit_round_scalar(op1, op2, 3, 0x0A, 'truncs')
 
     def roundd_sse(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         self._require_text_section('roundd')
-        self.emit_round_scalar(op1, op2, 0, 0x0B, 'roundd')
+        self._emit_round_scalar(op1, op2, 0, 0x0B, 'roundd')
 
     def floord_sse(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         self._require_text_section('floord')
-        self.emit_round_scalar(op1, op2, 1, 0x0B, 'floord')
+        self._emit_round_scalar(op1, op2, 1, 0x0B, 'floord')
 
     def ceild_sse(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         self._require_text_section('ceild')
-        self.emit_round_scalar(op1, op2, 2, 0x0B, 'ceild')
+        self._emit_round_scalar(op1, op2, 2, 0x0B, 'ceild')
 
     def truncd_sse(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         self._require_text_section('truncd')
-        self.emit_round_scalar(op1, op2, 3, 0x0B, 'truncd')
+        self._emit_round_scalar(op1, op2, 3, 0x0B, 'truncd')
 
-    def emit_round_scalar_avx(self, op1, op2, mode, opcode, name):
+    def _emit_round_scalar_avx(self, op1, op2, mode, opcode, name):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require(type(mode) is int)
@@ -1677,49 +1679,49 @@ class Emitter:
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_round_scalar_avx(op1, op2, 0, 0x0A, 'rounds')
+        self._emit_round_scalar_avx(op1, op2, 0, 0x0A, 'rounds')
 
     def floors_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_round_scalar_avx(op1, op2, 1, 0x0A, 'floors')
+        self._emit_round_scalar_avx(op1, op2, 1, 0x0A, 'floors')
 
     def ceils_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_round_scalar_avx(op1, op2, 2, 0x0A, 'ceils')
+        self._emit_round_scalar_avx(op1, op2, 2, 0x0A, 'ceils')
 
     def truncs_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_round_scalar_avx(op1, op2, 3, 0x0A, 'truncs')
+        self._emit_round_scalar_avx(op1, op2, 3, 0x0A, 'truncs')
 
     def roundd_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_round_scalar_avx(op1, op2, 0, 0x0B, 'roundd')
+        self._emit_round_scalar_avx(op1, op2, 0, 0x0B, 'roundd')
 
     def floord_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_round_scalar_avx(op1, op2, 1, 0x0B, 'floord')
+        self._emit_round_scalar_avx(op1, op2, 1, 0x0B, 'floord')
 
     def ceild_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_round_scalar_avx(op1, op2, 2, 0x0B, 'ceild')
+        self._emit_round_scalar_avx(op1, op2, 2, 0x0B, 'ceild')
 
     def truncd_avx(self, op1, op2):
         require(type(op1) is Xmm)
         require(type(op2) is Xmm)
         require_avx()
-        self.emit_round_scalar_avx(op1, op2, 3, 0x0B, 'truncd')
+        self._emit_round_scalar_avx(op1, op2, 3, 0x0B, 'truncd')
 
     def rounds(self, op1, op2):
         require(type(op1) is Xmm)
@@ -1785,7 +1787,7 @@ class Emitter:
         else:
             self.truncd_sse(op1, op2)
 
-    def emit_binary_op(self, op1, op2, opcode, imm_id):
+    def _emit_binary_op(self, op1, op2, opcode, imm_id):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         require(type(opcode) is int)
@@ -1816,31 +1818,31 @@ class Emitter:
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('add')
-        self.emit_binary_op(op1, op2, 0x01, 0)
+        self._emit_binary_op(op1, op2, 0x01, 0)
 
     def sub(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('sub')
-        self.emit_binary_op(op1, op2, 0x29, 5)
+        self._emit_binary_op(op1, op2, 0x29, 5)
 
     def bitand(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('bitand')
-        self.emit_binary_op(op1, op2, 0x21, 4)
+        self._emit_binary_op(op1, op2, 0x21, 4)
 
     def bitor(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('bitor')
-        self.emit_binary_op(op1, op2, 0x09, 1)
+        self._emit_binary_op(op1, op2, 0x09, 1)
 
     def xor(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('xor')
-        self.emit_binary_op(op1, op2, 0x31, 6)
+        self._emit_binary_op(op1, op2, 0x31, 6)
 
     def bitnot(self, op):
         require(type(op) is Reg)
@@ -1883,7 +1885,7 @@ class Emitter:
         else:
             require(False)
 
-    def emit_xchg(self, op1, op2):
+    def _emit_xchg(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) is Reg)
         dst = reg_id(op1)
@@ -1907,11 +1909,11 @@ class Emitter:
 
         divisor = op2
         if op2 == RAX:
-            self.emit_xchg(op1, RAX)
+            self._emit_xchg(op1, RAX)
             divisor = op1
         elif op2 == RDX:
             self.mov(RAX, op1)
-            self.emit_xchg(op1, RDX)
+            self._emit_xchg(op1, RDX)
             divisor = op1
         elif op1 != RAX:
             self.mov(RAX, op1)
@@ -1952,7 +1954,7 @@ class Emitter:
         self._require_text_section('div')
         self.emit_div(op1, op2, False)
 
-    def emit_shift(self, op1, op2, imm_id):
+    def _emit_shift(self, op1, op2, imm_id):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         require(type(imm_id) is int)
@@ -1979,31 +1981,31 @@ class Emitter:
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('shl')
-        self.emit_shift(op1, op2, 4)
+        self._emit_shift(op1, op2, 4)
 
     def sar(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('sar')
-        self.emit_shift(op1, op2, 7)
+        self._emit_shift(op1, op2, 7)
 
     def shr(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('shr')
-        self.emit_shift(op1, op2, 5)
+        self._emit_shift(op1, op2, 5)
 
     def ror(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('ror')
-        self.emit_shift(op1, op2, 1)
+        self._emit_shift(op1, op2, 1)
 
     def rol(self, op1, op2):
         require(type(op1) is Reg)
         require(type(op2) in (Reg, int))
         self._require_text_section('rol')
-        self.emit_shift(op1, op2, 0)
+        self._emit_shift(op1, op2, 0)
 
     def push(self, r):
         require(type(r) is Reg)
@@ -2109,7 +2111,7 @@ class Emitter:
         else:
             require(False)
 
-    def emit_ucomis(self, x1, x2, prefix, name):
+    def _emit_ucomis(self, x1, x2, prefix, name):
         require(type(x1) is Xmm)
         require(type(x2) is Xmm)
         require(type(prefix) is bytes)
@@ -2128,14 +2130,14 @@ class Emitter:
     def ucomiss_sse(self, x1, x2):
         require(type(x1) is Xmm)
         require(type(x2) is Xmm)
-        self.emit_ucomis(x1, x2, b'', 'ucomiss')
+        self._emit_ucomis(x1, x2, b'', 'ucomiss')
 
     def ucomisd_sse(self, x1, x2):
         require(type(x1) is Xmm)
         require(type(x2) is Xmm)
-        self.emit_ucomis(x1, x2, b'\x66', 'ucomisd')
+        self._emit_ucomis(x1, x2, b'\x66', 'ucomisd')
 
-    def emit_ucomis_avx(self, x1, x2, pp, name):
+    def _emit_ucomis_avx(self, x1, x2, pp, name):
         require(type(x1) is Xmm)
         require(type(x2) is Xmm)
         require(type(pp) is VexPP)
@@ -2147,13 +2149,13 @@ class Emitter:
         require(type(x1) is Xmm)
         require(type(x2) is Xmm)
         require_avx()
-        self.emit_ucomis_avx(x1, x2, VexPP.NONE, 'ucomiss')
+        self._emit_ucomis_avx(x1, x2, VexPP.NONE, 'ucomiss')
 
     def ucomisd_avx(self, x1, x2):
         require(type(x1) is Xmm)
         require(type(x2) is Xmm)
         require_avx()
-        self.emit_ucomis_avx(x1, x2, VexPP.P66, 'ucomisd')
+        self._emit_ucomis_avx(x1, x2, VexPP.P66, 'ucomisd')
 
     def ucomiss(self, x1, x2):
         require(type(x1) is Xmm)
