@@ -39,7 +39,7 @@ def test_lea() -> None:
     e.ret()
     e.set_section(Section.DATA)
     e.label('value')
-    e.emit_bytes(b'\x00')
+    e._emit_bytes(b'\x00')
     e.finalize()
     f = e.symbol('f')
     assert ccall(f) == e.symbol('value')

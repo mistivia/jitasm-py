@@ -124,7 +124,7 @@ def test_movsx() -> None:
     e.ret()
     e.set_section(Section.DATA)
     e.label('value')
-    e.emit_bytes(b'\x80')
+    e._emit_bytes(b'\x80')
     e.finalize()
     f = e.symbol('f')
     assert ccall(f) == -128

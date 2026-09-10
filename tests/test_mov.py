@@ -121,7 +121,7 @@ def test_mov() -> None:
     e.ret()
     e.set_section(Section.DATA)
     e.label('value')
-    e.emit_bytes((0xFEDCBA9876543210).to_bytes(8, 'little'))
+    e._emit_bytes((0xFEDCBA9876543210).to_bytes(8, 'little'))
     e.finalize()
     f = e.symbol('f')
     assert ccall(f) == -0x0123456789ABCDF0

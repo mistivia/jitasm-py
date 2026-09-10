@@ -756,7 +756,7 @@ class Emitter:
         self.mapping= None
         self.symbols = None
 
-    def add_label_ref(self, name, pos, delta):
+    def _add_label_ref(self, name, pos, delta):
         assert type(name) is str
         assert type(pos) is int
         assert type(delta) in (RipDelta, LabelDelta)
@@ -770,14 +770,14 @@ class Emitter:
         assert type(result) is int
         return result
 
-    def emit_bytes(self, b):
+    def _emit_bytes(self, b):
         assert type(b) is bytes
         if self.section == Section.TEXT:
             self.text.extend(b)
         if self.section == Section.DATA:
             self.data.extend(b)
 
-    def require_text_section(self, name):
+    def _require_text_section(self, name):
         assert type(name) is str
         if self.section == Section.DATA:
             raise EmitterError('%s: cannot emit code at data section' % name)
@@ -873,7 +873,7 @@ class Emitter:
         if numbytes <= 0:
             raise EmitterError('align: alignment must be positive')
         padding = -len(self.data) % numbytes
-        self.emit_bytes(b'\x00' * padding)
+        self._emit_bytes(b'\x00' * padding)
 
     def db(self, *values):
         if self.section != Section.DATA:
@@ -882,7 +882,7 @@ class Emitter:
             assert type(value) is int
             if value < -(1 << 7) or value >= (1 << 8):
                 raise EmitterError('db: value must fit in 8 bits')
-            self.emit_bytes(bytes((value & 0xFF,)))
+            self._emit_bytes(bytes((value & 0xFF,)))
 
     def dw(self, *values):
         if self.section != Section.DATA:
@@ -891,7 +891,7 @@ class Emitter:
             assert type(value) is int
             if value < -(1 << 15) or value >= (1 << 16):
                 raise EmitterError('dw: value must fit in 16 bits')
-            self.emit_bytes((value & 0xFFFF).to_bytes(2, 'little'))
+            self._emit_bytes((value & 0xFFFF).to_bytes(2, 'little'))
 
     def dd(self, *values):
         for value in values:
@@ -901,19 +901,19 @@ class Emitter:
         for value in values:
             if type(value) is float:
                 try:
-                    self.emit_bytes(struct.pack('<f', value))
+                    self._emit_bytes(struct.pack('<f', value))
                 except OverflowError:
                     raise EmitterError('dd: float must fit in 32 bits') from None
             elif type(value) is tuple and len(value) == 2 and type(value[0]) is str and type(value[1]) is str:
                 target_label = value[0]
                 base_label = value[1]
-                self.add_label_ref(target_label, len(self.data), LabelDelta(base_label))
-                self.emit_bytes(b'\x00\x00\x00\x00')
+                self._add_label_ref(target_label, len(self.data), LabelDelta(base_label))
+                self._emit_bytes(b'\x00\x00\x00\x00')
             elif type(value) is int:
                 if value < -(1 << 31) or value >= (1 << 32):
                     raise EmitterError('dd: value must fit in 32 bits')
                 else:
-                    self.emit_bytes((value & 0xFFFFFFFF).to_bytes(4, 'little'))
+                    self._emit_bytes((value & 0xFFFFFFFF).to_bytes(4, 'little'))
             else:
                 assert False
 
@@ -922,12 +922,12 @@ class Emitter:
             raise EmitterError('dq: must be emitted at data section')
         for value in values:
             if type(value) is float:
-                self.emit_bytes(struct.pack('<d', value))
+                self._emit_bytes(struct.pack('<d', value))
             elif type(value) is int:
                 if value < -(1 << 63) or value >= (1 << 64):
                     raise EmitterError('dq: value must fit in 64 bits')
                 else:
-                    self.emit_bytes((value & 0xFFFFFFFFFFFFFFFF).to_bytes(8, 'little'))
+                    self._emit_bytes((value & 0xFFFFFFFFFFFFFFFF).to_bytes(8, 'little'))
             else:
                 assert False
 
@@ -939,7 +939,7 @@ class Emitter:
             encoded = value.encode('ascii')
         except UnicodeEncodeError:
             raise EmitterError('ascii: value must contain only ASCII characters') from None
-        self.emit_bytes(encoded)
+        self._emit_bytes(encoded)
 
     def asciz(self, value):
         assert type(value) is str
@@ -949,16 +949,16 @@ class Emitter:
             encoded = value.encode('ascii')
         except UnicodeEncodeError:
             raise EmitterError('asciz: value must contain only ASCII characters') from None
-        self.emit_bytes(encoded + b'\x00')
+        self._emit_bytes(encoded + b'\x00')
 
     def label(self, name):
         assert type(name) is str
         if name in self.labels:
             raise EmitterError('label already defined')
         if self.section == Section.TEXT:
-            self.labels[name] = (Section.TEXT, self.section_offset())
+            self.labels[name] = (Section.TEXT, self._section_offset())
         elif self.section == Section.DATA:
-            self.labels[name] = (Section.DATA, self.section_offset())
+            self.labels[name] = (Section.DATA, self._section_offset())
         else:
             raise EmitterError('invalid section')
 
@@ -966,7 +966,7 @@ class Emitter:
         assert type(s) is Section
         self.section = s
 
-    def section_offset(self):
+    def _section_offset(self):
         if self.section == Section.TEXT:
             return len(self.text)
         elif self.section == Section.DATA:
@@ -974,7 +974,7 @@ class Emitter:
         else:
             assert False
 
-    def emit_mem_op(self, reg, mem, opcode, rex_w, legacy_prefix = b''):
+    def _emit_mem_op(self, reg, mem, opcode, rex_w, legacy_prefix = b''):
         assert type(reg) is Reg
         assert type(mem) is Mem
         assert type(opcode) is bytes
@@ -993,13 +993,13 @@ class Emitter:
             rex_prefix = bytes((rex,))
         else:
             rex_prefix = b''
-        instruction_start = self.section_offset()
-        self.emit_bytes(legacy_prefix + rex_prefix + opcode + bytes((encoded.mod_rm,)) + encoded.suffix)
+        instruction_start = self._section_offset()
+        self._emit_bytes(legacy_prefix + rex_prefix + opcode + bytes((encoded.mod_rm,)) + encoded.suffix)
         if type(mem.addr) is Rel:
             disp_pos = instruction_start + len(legacy_prefix) + len(rex_prefix) + len(opcode) + 1
-            self.add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
+            self._add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
-    def emit_mov_mem(self, op1, op2):
+    def _emit_mov_mem(self, op1, op2):
         if type(op1) is Reg and type(op2) is Mem:
             reg = op1
             mem = op2
@@ -1018,10 +1018,10 @@ class Emitter:
             legacy_prefix = b'\x66'
         else:
             legacy_prefix = b''
-        self.emit_mem_op(reg, mem, opcode, mem.size == QWORD, legacy_prefix)
+        self._emit_mem_op(reg, mem, opcode, mem.size == QWORD, legacy_prefix)
 
     def mov(self, op1, op2):
-        self.require_text_section('mov')
+        self._require_text_section('mov')
         if type(op1) is Reg and type(op2) is Reg:
             if op1 == RIP or op2 == RIP or op1.size != QWORD or op2.size != QWORD:
                 raise EmitterError('mov: register must be qword and cannot be rip')
@@ -1029,7 +1029,7 @@ class Emitter:
             src = reg_id(op2)
             rex = 0x48 | ((src >> 3) << 2) | (dst >> 3)
             mod_rm = 0xC0 | ((src & 7) << 3) | (dst & 7)
-            self.emit_bytes(bytes((rex, 0x89, mod_rm)))
+            self._emit_bytes(bytes((rex, 0x89, mod_rm)))
         elif type(op1) is Reg and type(op2) is int:
             if op1 == RIP or op1.size != QWORD or not -(1 << 63) <= op2 < (1 << 64):
                 raise EmitterError('mov: register must be qword and cannot be rip, imm must be 64 bit number')
@@ -1039,22 +1039,22 @@ class Emitter:
             dst = reg_id(op1)
             rex = 0x48 | (dst >> 3)
             immediate = (op2 & ((1 << 64) - 1)).to_bytes(8, 'little')
-            self.emit_bytes(bytes((rex, 0xB8 | (dst & 7))) + immediate)
+            self._emit_bytes(bytes((rex, 0xB8 | (dst & 7))) + immediate)
         elif type(op1) is Reg and type(op2) is Mem:
             if op1 == RIP or op1.size != QWORD or op2.size != QWORD:
                 raise EmitterError('mov: register must be qword and cannot be rip')
-            self.emit_mov_mem(op1, op2)
+            self._emit_mov_mem(op1, op2)
         elif type(op1) is Mem and type(op2) is Reg:
             if op2 == RIP or op2.size != QWORD:
                 raise EmitterError('mov: register must be qword and cannot be rip')
-            self.emit_mov_mem(op1, op2)
+            self._emit_mov_mem(op1, op2)
         else:
             raise EmitterError('mov: invalid form')
 
     def movzx(self, op1, op2):
         assert type(op1) in (Reg, Mem)
         assert type(op2) in (Reg, Mem)
-        self.require_text_section('movzx')
+        self._require_text_section('movzx')
         if type(op1) is not Reg or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movzx: destination must be a qword register')
 
@@ -1071,7 +1071,7 @@ class Emitter:
                 else:
                     rex_prefix = b''
                 mod_rm = 0xC0 | ((dst & 7) << 3) | (src_id & 7)
-                self.emit_bytes(rex_prefix + bytes((0x8B, mod_rm)))
+                self._emit_bytes(rex_prefix + bytes((0x8B, mod_rm)))
             else:
                 if src.size == BYTE:
                     opcode = 0xB6
@@ -1079,26 +1079,26 @@ class Emitter:
                     opcode = 0xB7
                 rex = 0x48 | ((dst >> 3) << 2) | (src_id >> 3)
                 mod_rm = 0xC0 | ((dst & 7) << 3) | (src_id & 7)
-                self.emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
+                self._emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
         elif type(op2) is Mem:
             mem = op2
             if mem.size not in (BYTE, WORD, DWORD):
                 raise EmitterError('movzx: source must be byte, word, or dword memory')
             if mem.size == DWORD:
-                self.emit_mov_mem(op1, mem)
+                self._emit_mov_mem(op1, mem)
                 return
             if mem.size == BYTE:
                 opcode = 0xB6
             else:
                 opcode = 0xB7
-            self.emit_mem_op(op1, mem, bytes((0x0F, opcode)), True)
+            self._emit_mem_op(op1, mem, bytes((0x0F, opcode)), True)
         else:
             raise EmitterError('movzx: invalid form')
 
     def movsx(self, op1, op2):
         assert type(op1) in (Reg, Mem)
         assert type(op2) in (Reg, Mem)
-        self.require_text_section('movsx')
+        self._require_text_section('movsx')
         if type(op1) is not Reg or op1 == RIP or op1.size != QWORD:
             raise EmitterError('movsx: destination must be a qword register')
 
@@ -1111,13 +1111,13 @@ class Emitter:
             rex = 0x48 | ((dst >> 3) << 2) | (src_id >> 3)
             mod_rm = 0xC0 | ((dst & 7) << 3) | (src_id & 7)
             if src.size == DWORD:
-                self.emit_bytes(bytes((rex, 0x63, mod_rm)))
+                self._emit_bytes(bytes((rex, 0x63, mod_rm)))
             else:
                 if src.size == BYTE:
                     opcode = 0xBE
                 else:
                     opcode = 0xBF
-                self.emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
+                self._emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
         elif type(op2) is Mem:
             mem = op2
             if mem.size not in (BYTE, WORD, DWORD):
@@ -1129,26 +1129,26 @@ class Emitter:
                     opcode = b'\x0f\xbe'
                 else:
                     opcode = b'\x0f\xbf'
-            self.emit_mem_op(op1, mem, opcode, True)
+            self._emit_mem_op(op1, mem, opcode, True)
         else:
             raise EmitterError('movsx: invalid form')
 
     def lea(self, op1, op2):
-        self.require_text_section('lea')
+        self._require_text_section('lea')
         if type(op1) is Reg and type(op2) is Mem:
             dst = op1
             mem = op2
             if dst == RIP or dst.size != QWORD:
                 raise EmitterError('lea: destination must be a qword register')
-            self.emit_mem_op(dst, mem, b'\x8d', True)
+            self._emit_mem_op(dst, mem, b'\x8d', True)
         else:
             raise EmitterError('lea: invalid form')
 
-    def emit_cmov(self, opcode, op1, op2):
+    def _emit_cmov(self, opcode, op1, op2):
         assert type(opcode) is int
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.require_text_section('cmov')
+        self._require_text_section('cmov')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('cmov: destination must be a qword register')
         if op2 == RIP or op2.size != QWORD:
@@ -1160,64 +1160,64 @@ class Emitter:
         src = reg_id(op2)
         rex = 0x48 | ((dst >> 3) << 2) | (src >> 3)
         mod_rm = 0xC0 | ((dst & 7) << 3) | (src & 7)
-        self.emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
+        self._emit_bytes(bytes((rex, 0x0F, opcode, mod_rm)))
 
     def cmoveq(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[EQ], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[EQ], op1, op2)
 
     def cmovne(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[NE], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[NE], op1, op2)
 
     def cmovgt(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[GT], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[GT], op1, op2)
 
     def cmovge(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[GE], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[GE], op1, op2)
 
     def cmovlt(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[LT], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[LT], op1, op2)
 
     def cmovle(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[LE], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[LE], op1, op2)
 
     def cmovgtu(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[GTU], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[GTU], op1, op2)
 
     def cmovgeu(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[GEU], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[GEU], op1, op2)
 
     def cmovltu(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[LTU], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[LTU], op1, op2)
 
     def cmovleu(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[LEU], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[LEU], op1, op2)
 
     def cmovp(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.emit_cmov(0x40 | COND_CODE_IDS[P], op1, op2)
+        self._emit_cmov(0x40 | COND_CODE_IDS[P], op1, op2)
 
-    def emit_mov_scalar_mem(self, xmm, mem, opcode, prefix):
+    def _emit_mov_scalar_mem(self, xmm, mem, opcode, prefix):
         assert type(xmm) is Xmm
         assert type(mem) is Mem
         assert type(opcode) is int
@@ -1229,19 +1229,19 @@ class Emitter:
             rex_prefix = bytes((rex,))
         else:
             rex_prefix = b''
-        instruction_start = self.section_offset()
-        self.emit_bytes(
+        instruction_start = self._section_offset()
+        self._emit_bytes(
             prefix + rex_prefix + bytes((0x0F, opcode, encoded.mod_rm)) + encoded.suffix
         )
         if type(mem.addr) is Rel:
             disp_pos = instruction_start + len(prefix) + len(rex_prefix) + 3
-            self.add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
+            self._add_label_ref(mem.addr.label, disp_pos, RipDelta(len(self.text)))
 
-    def emit_mov_scalar(self, op1, op2, size, prefix, name):
+    def _emit_mov_scalar(self, op1, op2, size, prefix, name):
         assert type(size) is WordSize
         assert type(prefix) is bytes
         assert type(name) is str
-        self.require_text_section(name)
+        self._require_text_section(name)
         if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
             src = op2
@@ -1253,36 +1253,36 @@ class Emitter:
             else:
                 rex_prefix = b''
             mod_rm = 0xC0 | ((dst.id & 7) << 3) | (src.id & 7)
-            self.emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x10, mod_rm)))
+            self._emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x10, mod_rm)))
         elif type(op1) is Xmm and type(op2) is Mem:
             dst = op1
             mem = op2
             if dst.id < 0 or dst.id > 15 or mem.size != size:
                 raise EmitterError('%s: operands have incompatible sizes' % name)
-            self.emit_mov_scalar_mem(dst, mem, 0x10, prefix)
+            self._emit_mov_scalar_mem(dst, mem, 0x10, prefix)
         elif type(op1) is Mem and type(op2) is Xmm:
             mem = op1
             src = op2
             if src.id < 0 or src.id > 15 or mem.size != size:
                 raise EmitterError('%s: operands have incompatible sizes' % name)
-            self.emit_mov_scalar_mem(src, mem, 0x11, prefix)
+            self._emit_mov_scalar_mem(src, mem, 0x11, prefix)
         else:
             raise EmitterError('%s: invalid form' % name)
 
     def movss_sse(self, op1, op2):
         assert type(op1) in (Xmm, Mem)
         assert type(op2) in (Xmm, Mem)
-        self.emit_mov_scalar(op1, op2, DWORD, b'\xf3', 'movss')
+        self._emit_mov_scalar(op1, op2, DWORD, b'\xf3', 'movss')
 
-    def emit_mov_scalar_avx(self, op1, op2, size, pp, name):
+    def _emit_mov_scalar_avx(self, op1, op2, size, pp, name):
         assert type(size) is WordSize
         assert type(pp) is VexPP
         assert type(name) is str
-        self.require_text_section(name)
+        self._require_text_section(name)
         if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
             src = op2
-            self.emit_bytes(encode_vex(
+            self._emit_bytes(encode_vex(
                 dst, dst, src, 0x10, VexMap.MAP_0F, pp, VexW.W0,
             ))
         elif type(op1) is Xmm and type(op2) is Mem:
@@ -1290,22 +1290,22 @@ class Emitter:
             mem = op2
             if dst.id < 0 or dst.id > 15 or mem.size != size:
                 raise EmitterError('%s: operands have incompatible sizes' % name)
-            instruction_start = self.section_offset()
-            self.emit_bytes(encode_vex_rm(
+            instruction_start = self._section_offset()
+            self._emit_bytes(encode_vex_rm(
                 dst.id, mem, VexL.L128, 0x10,
                 VexMap.MAP_0F, pp, VexW.W0,
             ))
             if type(mem.addr) is Rel:
-                self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
+                self._add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
         elif type(op1) is Mem and type(op2) is Xmm:
             mem = op1
             src = op2
             if src.id < 0 or src.id > 15 or mem.size != size:
                 raise EmitterError('%s: operands have incompatible sizes' % name)
-            instruction_start = self.section_offset()
-            self.emit_bytes(encode_vex_rm(mem, src.id, VexL.L128, 0x11,VexMap.MAP_0F, pp, VexW.W0))
+            instruction_start = self._section_offset()
+            self._emit_bytes(encode_vex_rm(mem, src.id, VexL.L128, 0x11,VexMap.MAP_0F, pp, VexW.W0))
             if type(mem.addr) is Rel:
-                self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
+                self._add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
         else:
             raise EmitterError('%s: invalid form' % name)
 
@@ -1313,18 +1313,18 @@ class Emitter:
         assert type(op1) in (Xmm, Mem)
         assert type(op2) in (Xmm, Mem)
         require_avx()
-        self.emit_mov_scalar_avx(op1, op2, DWORD, VexPP.PF3, 'movss')
+        self._emit_mov_scalar_avx(op1, op2, DWORD, VexPP.PF3, 'movss')
 
     def movsd_sse(self, op1, op2):
         assert type(op1) in (Xmm, Mem)
         assert type(op2) in (Xmm, Mem)
-        self.emit_mov_scalar(op1, op2, QWORD, b'\xf2', 'movsd')
+        self._emit_mov_scalar(op1, op2, QWORD, b'\xf2', 'movsd')
 
     def movsd_avx(self, op1, op2):
         assert type(op1) in (Xmm, Mem)
         assert type(op2) in (Xmm, Mem)
         require_avx()
-        self.emit_mov_scalar_avx(op1, op2, QWORD, VexPP.PF2, 'movsd')
+        self._emit_mov_scalar_avx(op1, op2, QWORD, VexPP.PF2, 'movsd')
 
     def emit_scalar_arith(self, op1, op2, opcode, prefix, name):
         assert type(op1) is Xmm
@@ -1340,54 +1340,54 @@ class Emitter:
         else:
             rex_prefix = b''
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (op2.id & 7)
-        self.emit_bytes(prefix + rex_prefix + bytes((0x0F, opcode, mod_rm)))
+        self._emit_bytes(prefix + rex_prefix + bytes((0x0F, opcode, mod_rm)))
 
     def addss_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('addss')
+        self._require_text_section('addss')
         self.emit_scalar_arith(op1, op2, 0x58, b'\xf3', 'addss')
 
     def subss_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('subss')
+        self._require_text_section('subss')
         self.emit_scalar_arith(op1, op2, 0x5C, b'\xf3', 'subss')
 
     def mulss_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('mulss')
+        self._require_text_section('mulss')
         self.emit_scalar_arith(op1, op2, 0x59, b'\xf3', 'mulss')
 
     def divss_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('divss')
+        self._require_text_section('divss')
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf3', 'divss')
 
     def addsd_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('addsd')
+        self._require_text_section('addsd')
         self.emit_scalar_arith(op1, op2, 0x58, b'\xf2', 'addsd')
 
     def subsd_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('subsd')
+        self._require_text_section('subsd')
         self.emit_scalar_arith(op1, op2, 0x5C, b'\xf2', 'subsd')
 
     def mulsd_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('mulsd')
+        self._require_text_section('mulsd')
         self.emit_scalar_arith(op1, op2, 0x59, b'\xf2', 'mulsd')
 
     def divsd_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('divsd')
+        self._require_text_section('divsd')
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf2', 'divsd')
 
     def emit_scalar_arith_avx(self, op1, op2, opcode, pp, name):
@@ -1396,8 +1396,8 @@ class Emitter:
         assert type(opcode) is int
         assert type(pp) is VexPP
         assert type(name) is str
-        self.require_text_section(name)
-        self.emit_bytes(encode_vex(op1, op1, op2, opcode, VexMap.MAP_0F, pp, VexW.W0))
+        self._require_text_section(name)
+        self._emit_bytes(encode_vex(op1, op1, op2, opcode, VexMap.MAP_0F, pp, VexW.W0))
 
     def addss_avx(self, op1, op2):
         assert type(op1) is Xmm
@@ -1532,7 +1532,7 @@ class Emitter:
         assert type(op2) is Reg
         assert type(prefix) is bytes
         assert type(name) is str
-        self.require_text_section(name)
+        self._require_text_section(name)
         if op1.id < 0 or op1.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
         if op2 == RIP or op2.size != QWORD:
@@ -1540,7 +1540,7 @@ class Emitter:
         src = reg_id(op2)
         rex = 0x48 | ((op1.id >> 3) << 2) | (src >> 3)
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (src & 7)
-        self.emit_bytes(prefix + bytes((rex, 0x0F, 0x2A, mod_rm)))
+        self._emit_bytes(prefix + bytes((rex, 0x0F, 0x2A, mod_rm)))
 
     def cvtsi2ss_sse(self, op1, op2):
         assert type(op1) is Xmm
@@ -1567,7 +1567,7 @@ class Emitter:
         assert type(op2) is Xmm
         assert type(prefix) is bytes
         assert type(name) is str
-        self.require_text_section(name)
+        self._require_text_section(name)
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('%s: destination must be a qword register' % name)
         if op2.id < 0 or op2.id > 15:
@@ -1575,7 +1575,7 @@ class Emitter:
         dst = reg_id(op1)
         rex = 0x48 | ((dst >> 3) << 2) | (op2.id >> 3)
         mod_rm = 0xC0 | ((dst & 7) << 3) | (op2.id & 7)
-        self.emit_bytes(prefix + bytes((rex, 0x0F, 0x2C, mod_rm)))
+        self._emit_bytes(prefix + bytes((rex, 0x0F, 0x2C, mod_rm)))
 
     def cvttss2si_sse(self, op1, op2):
         assert type(op1) is Reg
@@ -1611,56 +1611,56 @@ class Emitter:
         else:
             rex_prefix = b''
         mod_rm = 0xC0 | ((op1.id & 7) << 3) | (op2.id & 7)
-        self.emit_bytes(
+        self._emit_bytes(
             b'\x66' + rex_prefix + bytes((0x0F, 0x3A, opcode, mod_rm, mode))
         )
 
     def rounds_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('rounds')
+        self._require_text_section('rounds')
         self.emit_round_scalar(op1, op2, 0, 0x0A, 'rounds')
 
     def floors_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('floors')
+        self._require_text_section('floors')
         self.emit_round_scalar(op1, op2, 1, 0x0A, 'floors')
 
     def ceils_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('ceils')
+        self._require_text_section('ceils')
         self.emit_round_scalar(op1, op2, 2, 0x0A, 'ceils')
 
     def truncs_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('truncs')
+        self._require_text_section('truncs')
         self.emit_round_scalar(op1, op2, 3, 0x0A, 'truncs')
 
     def roundd_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('roundd')
+        self._require_text_section('roundd')
         self.emit_round_scalar(op1, op2, 0, 0x0B, 'roundd')
 
     def floord_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('floord')
+        self._require_text_section('floord')
         self.emit_round_scalar(op1, op2, 1, 0x0B, 'floord')
 
     def ceild_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('ceild')
+        self._require_text_section('ceild')
         self.emit_round_scalar(op1, op2, 2, 0x0B, 'ceild')
 
     def truncd_sse(self, op1, op2):
         assert type(op1) is Xmm
         assert type(op2) is Xmm
-        self.require_text_section('truncd')
+        self._require_text_section('truncd')
         self.emit_round_scalar(op1, op2, 3, 0x0B, 'truncd')
 
     def emit_round_scalar_avx(self, op1, op2, mode, opcode, name):
@@ -1669,8 +1669,8 @@ class Emitter:
         assert type(mode) is int
         assert type(opcode) is int
         assert type(name) is str
-        self.require_text_section(name)
-        self.emit_bytes(encode_vex(
+        self._require_text_section(name)
+        self._emit_bytes(encode_vex(
             op1, op1, op2, opcode, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, mode,
         ))
 
@@ -1801,7 +1801,7 @@ class Emitter:
             src_id = reg_id(src)
             rex = 0x48 | ((src_id >> 3) << 2) | (dst >> 3)
             mod_rm = 0xC0 | ((src_id & 7) << 3) | (dst & 7)
-            self.emit_bytes(bytes((rex, opcode, mod_rm)))
+            self._emit_bytes(bytes((rex, opcode, mod_rm)))
         elif type(op2) is int:
             immediate = op2
             encoded = signed_bytes(immediate, 4)
@@ -1809,59 +1809,59 @@ class Emitter:
                 raise EmitterError('binary op: immediate must fit in signed 32 bits')
             rex = 0x48 | (dst >> 3)
             mod_rm = 0xC0 | (imm_id << 3) | (dst & 7)
-            self.emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
+            self._emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
         else:
             assert False
 
     def add(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('add')
+        self._require_text_section('add')
         self.emit_binary_op(op1, op2, 0x01, 0)
 
     def sub(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('sub')
+        self._require_text_section('sub')
         self.emit_binary_op(op1, op2, 0x29, 5)
 
     def bitand(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('bitand')
+        self._require_text_section('bitand')
         self.emit_binary_op(op1, op2, 0x21, 4)
 
     def bitor(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('bitor')
+        self._require_text_section('bitor')
         self.emit_binary_op(op1, op2, 0x09, 1)
 
     def xor(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('xor')
+        self._require_text_section('xor')
         self.emit_binary_op(op1, op2, 0x31, 6)
 
     def bitnot(self, op):
         assert type(op) is Reg
-        self.require_text_section('bitnot')
+        self._require_text_section('bitnot')
         self.xor(op, -1)
 
     def neg(self, op):
         assert type(op) is Reg
-        self.require_text_section('neg')
+        self._require_text_section('neg')
         if op == RIP or op.size != QWORD:
             raise EmitterError('neg: operand must be a qword register')
         dst = reg_id(op)
         rex = 0x48 | (dst >> 3)
         mod_rm = 0xD8 | (dst & 7)
-        self.emit_bytes(bytes((rex, 0xF7, mod_rm)))
+        self._emit_bytes(bytes((rex, 0xF7, mod_rm)))
 
     def imul(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('imul')
+        self._require_text_section('imul')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('imul: first operand must be a qword register')
         dst = reg_id(op1)
@@ -1872,7 +1872,7 @@ class Emitter:
             src_id = reg_id(src)
             rex = 0x48 | ((dst >> 3) << 2) | (src_id >> 3)
             mod_rm = 0xC0 | ((dst & 7) << 3) | (src_id & 7)
-            self.emit_bytes(bytes((rex, 0x0F, 0xAF, mod_rm)))
+            self._emit_bytes(bytes((rex, 0x0F, 0xAF, mod_rm)))
         elif type(op2) is int:
             immediate = op2
             encoded = signed_bytes(immediate, 4)
@@ -1880,7 +1880,7 @@ class Emitter:
                 raise EmitterError('imul: immediate must fit in signed 32 bits')
             rex = 0x48 | ((dst >> 3) << 2) | (dst >> 3)
             mod_rm = 0xC0 | ((dst & 7) << 3) | (dst & 7)
-            self.emit_bytes(bytes((rex, 0x69, mod_rm)) + encoded)
+            self._emit_bytes(bytes((rex, 0x69, mod_rm)) + encoded)
         else:
             assert False
 
@@ -1891,7 +1891,7 @@ class Emitter:
         src = reg_id(op2)
         rex = 0x48 | ((src >> 3) << 2) | (dst >> 3)
         mod_rm = 0xC0 | ((src & 7) << 3) | (dst & 7)
-        self.emit_bytes(bytes((rex, 0x87, mod_rm)))
+        self._emit_bytes(bytes((rex, 0x87, mod_rm)))
 
     def emit_div(self, op1, op2, signed):
         assert type(op1) is Reg
@@ -1918,7 +1918,7 @@ class Emitter:
             self.mov(RAX, op1)
 
         if signed:
-            self.emit_bytes(b'\x48\x99')
+            self._emit_bytes(b'\x48\x99')
             imm_id = 7
         else:
             self.xor(RDX, RDX)
@@ -1927,7 +1927,7 @@ class Emitter:
         divisor_id = reg_id(divisor)
         rex = 0x48 | (divisor_id >> 3)
         mod_rm = 0xC0 | (imm_id << 3) | (divisor_id & 7)
-        self.emit_bytes(bytes((rex, 0xF7, mod_rm)))
+        self._emit_bytes(bytes((rex, 0xF7, mod_rm)))
 
         if op1 == RDX:
             self.mov(op2, RDX)
@@ -1944,13 +1944,13 @@ class Emitter:
     def idiv(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.require_text_section('idiv')
+        self._require_text_section('idiv')
         self.emit_div(op1, op2, True)
 
     def div(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
-        self.require_text_section('div')
+        self._require_text_section('div')
         self.emit_div(op1, op2, False)
 
     def emit_shift(self, op1, op2, imm_id):
@@ -1967,48 +1967,48 @@ class Emitter:
             if src == RIP or src.size != QWORD:
                 raise EmitterError('shift: second operand must be a qword register')
             self.mov(RCX, src)
-            self.emit_bytes(bytes((rex, 0xD3, mod_rm)))
+            self._emit_bytes(bytes((rex, 0xD3, mod_rm)))
         elif type(op2) is int:
             immediate = op2
             if immediate < 0 or immediate >= (1 << 8):
                 raise EmitterError('shift: immediate must fit in unsigned 8 bits')
-            self.emit_bytes(bytes((rex, 0xC1, mod_rm, immediate)))
+            self._emit_bytes(bytes((rex, 0xC1, mod_rm, immediate)))
         else:
             assert False
 
     def shl(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('shl')
+        self._require_text_section('shl')
         self.emit_shift(op1, op2, 4)
 
     def sar(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('sar')
+        self._require_text_section('sar')
         self.emit_shift(op1, op2, 7)
 
     def shr(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('shr')
+        self._require_text_section('shr')
         self.emit_shift(op1, op2, 5)
 
     def ror(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('ror')
+        self._require_text_section('ror')
         self.emit_shift(op1, op2, 1)
 
     def rol(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('rol')
+        self._require_text_section('rol')
         self.emit_shift(op1, op2, 0)
 
     def push(self, r):
         assert type(r) is Reg
-        self.require_text_section('push')
+        self._require_text_section('push')
         if r == RIP or r.size != QWORD:
             raise EmitterError('push: operand must be a qword register')
         if r == RSP:
@@ -2020,7 +2020,7 @@ class Emitter:
 
     def pop(self, r):
         assert type(r) is Reg
-        self.require_text_section('pop')
+        self._require_text_section('pop')
         if r == RIP or r.size != QWORD:
             raise EmitterError('pop: operand must be a qword register')
         if r == RSP:
@@ -2041,12 +2041,12 @@ class Emitter:
 
     def call(self, target):
         assert type(target) in (str, Reg)
-        self.require_text_section('call')
+        self._require_text_section('call')
         if type(target) is str:
             label = target
-            instruction_start = self.section_offset()
-            self.emit_bytes(b'\xe8\x00\x00\x00\x00')
-            self.add_label_ref(label, instruction_start + 1, RipDelta(len(self.text)))
+            instruction_start = self._section_offset()
+            self._emit_bytes(b'\xe8\x00\x00\x00\x00')
+            self._add_label_ref(label, instruction_start + 1, RipDelta(len(self.text)))
         elif type(target) is Reg:
             reg = target
             if reg == RIP or reg.size != QWORD:
@@ -2057,18 +2057,18 @@ class Emitter:
             else:
                 rex_prefix = b''
             mod_rm = 0xD0 | (target_id & 7)
-            self.emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
+            self._emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
         else:
             assert False
 
     def jmp(self, target):
         assert type(target) in (str, Reg)
-        self.require_text_section('jmp')
+        self._require_text_section('jmp')
         if type(target) is str:
             label = target
-            instruction_start = self.section_offset()
-            self.emit_bytes(b'\xe9\x00\x00\x00\x00')
-            self.add_label_ref(label, instruction_start + 1, RipDelta(len(self.text)))
+            instruction_start = self._section_offset()
+            self._emit_bytes(b'\xe9\x00\x00\x00\x00')
+            self._add_label_ref(label, instruction_start + 1, RipDelta(len(self.text)))
         elif type(target) is Reg:
             reg = target
             if reg == RIP or reg.size != QWORD:
@@ -2079,14 +2079,14 @@ class Emitter:
             else:
                 rex_prefix = b''
             mod_rm = 0xE0 | (target_id & 7)
-            self.emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
+            self._emit_bytes(rex_prefix + bytes((0xFF, mod_rm)))
         else:
             assert False
 
     def cmp(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) in (Reg, int)
-        self.require_text_section('cmp')
+        self._require_text_section('cmp')
         if op1 == RIP or op1.size != QWORD:
             raise EmitterError('cmp: first operand must be a qword register')
 
@@ -2098,7 +2098,7 @@ class Emitter:
             src_id = reg_id(src)
             rex = 0x48 | ((src_id >> 3) << 2) | (dst >> 3)
             mod_rm = 0xC0 | ((src_id & 7) << 3) | (dst & 7)
-            self.emit_bytes(bytes((rex, 0x39, mod_rm)))
+            self._emit_bytes(bytes((rex, 0x39, mod_rm)))
         elif type(op2) is int:
             immediate = op2
             encoded = signed_bytes(immediate, 4)
@@ -2106,7 +2106,7 @@ class Emitter:
                 raise EmitterError('cmp: immediate must fit in signed 32 bits')
             rex = 0x48 | (dst >> 3)
             mod_rm = 0xF8 | (dst & 7)
-            self.emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
+            self._emit_bytes(bytes((rex, 0x81, mod_rm)) + encoded)
         else:
             assert False
 
@@ -2115,7 +2115,7 @@ class Emitter:
         assert type(x2) is Xmm
         assert type(prefix) is bytes
         assert type(name) is str
-        self.require_text_section(name)
+        self._require_text_section(name)
         if x1.id < 0 or x1.id > 15 or x2.id < 0 or x2.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((x1.id >> 3) << 2) | (x2.id >> 3)
@@ -2124,7 +2124,7 @@ class Emitter:
         else:
             rex_prefix = b''
         mod_rm = 0xC0 | ((x1.id & 7) << 3) | (x2.id & 7)
-        self.emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x2E, mod_rm)))
+        self._emit_bytes(prefix + rex_prefix + bytes((0x0F, 0x2E, mod_rm)))
 
     def ucomiss_sse(self, x1, x2):
         assert type(x1) is Xmm
@@ -2141,8 +2141,8 @@ class Emitter:
         assert type(x2) is Xmm
         assert type(pp) is VexPP
         assert type(name) is str
-        self.require_text_section(name)
-        self.emit_bytes(encode_vex(x1, None, x2, 0x2E, VexMap.MAP_0F, pp, VexW.W0))
+        self._require_text_section(name)
+        self._emit_bytes(encode_vex(x1, None, x2, 0x2E, VexMap.MAP_0F, pp, VexW.W0))
 
     def ucomiss_avx(self, x1, x2):
         assert type(x1) is Xmm
@@ -2175,10 +2175,10 @@ class Emitter:
     def jcc(self, cond, label):
         assert type(cond) is CondCode
         assert type(label) is str
-        self.require_text_section('jcc')
-        instruction_start = self.section_offset()
-        self.emit_bytes(bytes((0x0F, 0x80 | COND_CODE_IDS[cond])) + b'\x00\x00\x00\x00')
-        self.add_label_ref(label, instruction_start + 2, RipDelta(len(self.text)))
+        self._require_text_section('jcc')
+        instruction_start = self._section_offset()
+        self._emit_bytes(bytes((0x0F, 0x80 | COND_CODE_IDS[cond])) + b'\x00\x00\x00\x00')
+        self._add_label_ref(label, instruction_start + 2, RipDelta(len(self.text)))
 
     def ja(self, label):
         assert type(label) is str
@@ -2331,7 +2331,7 @@ class Emitter:
     def setcc(self, cond, r):
         assert type(cond) is CondCode
         assert type(r) is Reg
-        self.require_text_section('setcc')
+        self._require_text_section('setcc')
         if r.name == RegName.RIP or r.size != BYTE:
             raise EmitterError('setcc: destination must be a byte register')
         dst = reg_id(r)
@@ -2341,7 +2341,7 @@ class Emitter:
         else:
             rex_prefix = b''
         mod_rm = 0xC0 | (dst & 7)
-        self.emit_bytes(rex_prefix + bytes((0x0F, 0x90 | COND_CODE_IDS[cond], mod_rm)))
+        self._emit_bytes(rex_prefix + bytes((0x0F, 0x90 | COND_CODE_IDS[cond], mod_rm)))
 
     def branch(self, cond, op1, op2, label):
         assert type(cond) is CondCode
@@ -2666,12 +2666,12 @@ class Emitter:
         self.cset(LEU, op1, op2, r)
 
     def ret(self):
-        self.require_text_section('ret')
-        self.emit_bytes(b'\xc3')
+        self._require_text_section('ret')
+        self._emit_bytes(b'\xc3')
 
     def cpuid(self):
-        self.require_text_section('cpuid')
-        self.emit_bytes(b'\x0f\xa2')
+        self._require_text_section('cpuid')
+        self._emit_bytes(b'\x0f\xa2')
 
     def emit_vmov(self, op1, op2, load_opcode, store_opcode, name):
         assert type(op1) in (Xmm, Ymm, Mem)
@@ -2679,16 +2679,16 @@ class Emitter:
         assert type(load_opcode) is int
         assert type(store_opcode) is int
         assert type(name) is str
-        self.require_text_section(name)
+        self._require_text_section(name)
         if type(op1) is Xmm and type(op2) is Xmm:
             dst = op1
             src = op2
-            self.emit_bytes(encode_vex(dst, None, src, load_opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+            self._emit_bytes(encode_vex(dst, None, src, load_opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
             return
         elif type(op1) is Ymm and type(op2) is Ymm:
             dst = op1
             src = op2
-            self.emit_bytes(encode_vex(dst, None, src, load_opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+            self._emit_bytes(encode_vex(dst, None, src, load_opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
             return
         elif type(op1) is Xmm and type(op2) is Mem:
             reg = op1
@@ -2718,10 +2718,10 @@ class Emitter:
             raise EmitterError('%s: invalid form' % name)
         if mem.size != size:
             raise EmitterError('%s: operands have incompatible sizes' % name)
-        instruction_start = self.section_offset()
-        self.emit_bytes(encode_vex_rm(reg.id, mem, l, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+        instruction_start = self._section_offset()
+        self._emit_bytes(encode_vex_rm(reg.id, mem, l, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
         if type(mem.addr) is Rel:
-            self.add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
+            self._add_label_ref(mem.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
     def vmovaps(self, op1, op2):
         require_avx()
@@ -2737,11 +2737,11 @@ class Emitter:
         assert type(src2) == type(dst)
         assert type(opcode) is int
         assert type(name) is str
-        self.require_text_section(name)
+        self._require_text_section(name)
         if type(dst) is Xmm and type(src1) is Xmm and type(src2) is Xmm:
-            self.emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+            self._emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
         elif type(dst) is Ymm and type(src1) is Ymm and type(src2) is Ymm:
-            self.emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+            self._emit_bytes(encode_vex(dst, src1, src2, opcode, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
         else:
             raise EmitterError('%s: invalid form' % name)
 
@@ -2777,19 +2777,19 @@ class Emitter:
         assert type(dst) in (Xmm, Ymm)
         assert type(src1) == type(dst)
         assert type(src2) == type(dst)
-        self.require_text_section('vaddsubps')
+        self._require_text_section('vaddsubps')
         require_avx()
-        self.emit_bytes(encode_vex(dst, src1, src2, 0xD0, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0xD0, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vsqrtps(self, dst, src):
         assert type(dst) in (Xmm, Ymm)
         assert type(src) == type(dst)
-        self.require_text_section('vsqrtps')
+        self._require_text_section('vsqrtps')
         require_avx()
         if type(dst) is Xmm and type(src) is Xmm:
-            self.emit_bytes(encode_vex(dst, None, src, 0x51, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+            self._emit_bytes(encode_vex(dst, None, src, 0x51, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
         elif type(dst) is Ymm and type(src) is Ymm:
-            self.emit_bytes(encode_vex(dst, None, src, 0x51, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+            self._emit_bytes(encode_vex(dst, None, src, 0x51, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
         else:
             raise EmitterError('vsqrtps: invalid form')
 
@@ -2818,9 +2818,9 @@ class Emitter:
         assert type(dst) in (Xmm, Ymm)
         assert type(src1) == type(dst)
         assert type(src2) == type(dst)
-        self.require_text_section('vandnps')
+        self._require_text_section('vandnps')
         require_avx()
-        self.emit_bytes(encode_vex(dst, src1, src2, 0x55, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0x55, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def vorps(self, dst, src1, src2):
         assert type(dst) in (Xmm, Ymm)
@@ -2833,23 +2833,23 @@ class Emitter:
         assert type(dst) in (Xmm, Ymm)
         assert type(src1) == type(dst)
         assert type(src2) == type(dst)
-        self.require_text_section('vxorps')
+        self._require_text_section('vxorps')
         require_avx()
-        self.emit_bytes(encode_vex(dst, src1, src2, 0x57, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0x57, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def emit_vroundps(self, dst, src, mode):
         assert type(dst) in (Xmm, Ymm)
         assert type(src) == type(dst)
         assert type(mode) is int
-        self.require_text_section('vroundps')
+        self._require_text_section('vroundps')
         if mode < 0 or mode > 0x0F:
             raise EmitterError('vroundps: mode must fit in 4 bits')
         if type(dst) is Xmm and type(src) is Xmm:
-            self.emit_bytes(encode_vex(
+            self._emit_bytes(encode_vex(
                 dst, None, src, 0x08, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, mode,
             ))
         elif type(dst) is Ymm and type(src) is Ymm:
-            self.emit_bytes(encode_vex(
+            self._emit_bytes(encode_vex(
                 dst, None, src, 0x08, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, mode,
             ))
         else:
@@ -2884,16 +2884,16 @@ class Emitter:
         assert type(src1) == type(dst)
         assert type(src2) == type(dst)
         assert type(predicate) is int
-        self.require_text_section('vcmpps')
+        self._require_text_section('vcmpps')
         require_avx()
         if predicate < 0 or predicate > 7:
             raise EmitterError('vcmpps: predicate must be between 0 and 7')
         if type(dst) is Xmm and type(src1) is Xmm and type(src2) is Xmm:
-            self.emit_bytes(encode_vex(
+            self._emit_bytes(encode_vex(
                 dst, src1, src2, 0xC2, VexMap.MAP_0F, VexPP.NONE, VexW.W0, predicate,
             ))
         elif type(dst) is Ymm and type(src1) is Ymm and type(src2) is Ymm:
-            self.emit_bytes(encode_vex(
+            self._emit_bytes(encode_vex(
                 dst, src1, src2, 0xC2, VexMap.MAP_0F, VexPP.NONE, VexW.W0, predicate,
             ))
         else:
@@ -2973,17 +2973,17 @@ class Emitter:
         assert type(dst) in (Xmm, Ymm)
         assert type(src1) == type(dst)
         assert type(src2) == type(dst)
-        self.require_text_section('vhaddps')
+        self._require_text_section('vhaddps')
         require_avx()
-        self.emit_bytes(encode_vex(dst, src1, src2, 0x7C, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0x7C, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vhsubps(self, dst, src1, src2):
         assert type(dst) in (Xmm, Ymm)
         assert type(src1) == type(dst)
         assert type(src2) == type(dst)
-        self.require_text_section('vhsubps')
+        self._require_text_section('vhsubps')
         require_avx()
-        self.emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0x7D, VexMap.MAP_0F, VexPP.PF2, VexW.W0))
 
     def vdpps(self, dst, src1, src2, input_mask, output_mask):
         assert type(dst)         in (Xmm, Ymm)
@@ -2991,7 +2991,7 @@ class Emitter:
         assert type(src2)        in (Xmm, Ymm)
         assert type(input_mask)  is list
         assert type(output_mask) is list
-        self.require_text_section('vdpps')
+        self._require_text_section('vdpps')
         require_avx()
         if len(input_mask) != 4:
             raise EmitterError('vdpps: input mask must contain four booleans')
@@ -3006,40 +3006,40 @@ class Emitter:
             assert type(value) is bool
             output_imm += int(value) << i
         imm8 |= output_imm
-        self.emit_bytes(encode_vex(dst, src1, src2, 0x40, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0x40, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     def vrcpps(self, dst, src):
         assert type(dst) in (Xmm, Ymm)
         assert type(src) == type(dst)
-        self.require_text_section('vrcpps')
+        self._require_text_section('vrcpps')
         require_avx()
-        self.emit_bytes(encode_vex(dst, None, src, 0x53, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+        self._emit_bytes(encode_vex(dst, None, src, 0x53, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def vrsqrtps(self, dst, src):
         assert type(dst) in (Xmm, Ymm)
         assert type(src) == type(dst)
-        self.require_text_section('vrsqrtps')
+        self._require_text_section('vrsqrtps')
         require_avx()
-        self.emit_bytes(encode_vex(dst, None, src, 0x52, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
+        self._emit_bytes(encode_vex(dst, None, src, 0x52, VexMap.MAP_0F, VexPP.NONE, VexW.W0))
 
     def vzeroupper(self):
-        self.require_text_section('vzeroupper')
+        self._require_text_section('vzeroupper')
         require_avx()
-        self.emit_bytes(b'\xc5\xf8\x77')
+        self._emit_bytes(b'\xc5\xf8\x77')
 
     def vptest(self, op1, op2):
         assert type(op1) in (Xmm, Ymm)
         assert type(op1) == type(op2)
-        self.require_text_section('vptest')
+        self._require_text_section('vptest')
         require_avx()
-        self.emit_bytes(encode_vex(op1, None, op2, 0x17, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+        self._emit_bytes(encode_vex(op1, None, op2, 0x17, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
 
     def vblendps(self, dst, src1, src2, mask):
         assert type(dst) in (Xmm, Ymm)
         assert type(src1) == type(dst)
         assert type(src2) == type(dst)
         assert type(mask) is list
-        self.require_text_section('vblendps')
+        self._require_text_section('vblendps')
         require_avx()
         if type(dst) is Xmm:
             size = 4
@@ -3048,20 +3048,20 @@ class Emitter:
         if len(mask) != size or any(value not in (1, 2) for value in mask):
             raise EmitterError('vblendps: mask must contain %d integers, each 1 or 2' % size)
         imm8 = sum((value - 1) << i for i, value in enumerate(mask))
-        self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     def vshufps(self, dst, src1, src2, imm):
         assert type(dst) in (Xmm, Ymm)
         assert type(src1) == type(dst)
         assert type(src2) == type(dst)
         assert type(imm) is list
-        self.require_text_section('vshufps')
+        self._require_text_section('vshufps')
         require_avx()
         for value in imm: assert type(value) is int
         if len(imm) != 4 or any(value < 0 or value > 3 for value in imm):
             raise EmitterError('vshufps: imm must contain four integers between 0 and 3')
         imm8 = sum(value << (2 * i) for i, value in enumerate(imm))
-        self.emit_bytes(encode_vex(dst, src1, src2, 0xC6, VexMap.MAP_0F, VexPP.NONE, VexW.W0, imm8))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0xC6, VexMap.MAP_0F, VexPP.NONE, VexW.W0, imm8))
 
     def vpermilps(self, dst, src1, src2):
         assert type(dst)  in (Xmm, Ymm)
@@ -3071,16 +3071,16 @@ class Emitter:
             assert type(dst) == type(src1) == type(src2)
         else:
             assert type(dst) == type(src1)
-        self.require_text_section('vpermilps')
+        self._require_text_section('vpermilps')
         require_avx()
         if type(src2) is list:
             for value in src2: assert type(value) is int
             if len(src2) != 4 or any(value < 0 or value > 3 for value in src2):
                 raise EmitterError('vpermilps: imm must contain four integers between 0 and 3')
             imm8 = sum(value << (2 * i) for i, value in enumerate(src2))
-            self.emit_bytes(encode_vex(dst, None, src1, 0x04, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
+            self._emit_bytes(encode_vex(dst, None, src1, 0x04, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
         else:
-            self.emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+            self._emit_bytes(encode_vex(dst, src1, src2, 0x0C, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
 
     # zero_mask: 1 zeros the corresponding element; 0 keeps its value after insertion.
     def vinsertps(self, dst, src1, src2, count_dst, count_src, zero_mask):
@@ -3090,7 +3090,7 @@ class Emitter:
         assert type(count_dst) is int
         assert type(count_src) is int
         assert type(zero_mask) is list
-        self.require_text_section('vinsertps')
+        self._require_text_section('vinsertps')
         require_avx()
         if count_dst < 0 or count_dst > 3:
             raise EmitterError('vinsertps: count_dst must be between 0 and 3')
@@ -3100,20 +3100,20 @@ class Emitter:
             raise EmitterError('vinsertps: zero_mask must contain four integers, each 0 or 1')
         imm8 = (count_src << 6) | (count_dst << 4)
         imm8 |= sum(value << i for i, value in enumerate(zero_mask))
-        self.emit_bytes(encode_vex(dst, src1, src2, 0x21, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
+        self._emit_bytes(encode_vex(dst, src1, src2, 0x21, VexMap.MAP_0F3A, VexPP.P66, VexW.W0, imm8))
 
     def vbroadcastss(self, dst, src):
         assert type(dst) in (Xmm, Ymm)
         assert type(src) in (Xmm, Mem)
-        self.require_text_section('vbroadcastss')
+        self._require_text_section('vbroadcastss')
         require_avx()
         if type(src) is Xmm:
             require_avx2()
             if type(dst) is Ymm:
                 # The source field only encodes the register number; the opcode fixes its width to XMM.
-                self.emit_bytes(encode_vex(dst, None, Ymm(src.id), 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+                self._emit_bytes(encode_vex(dst, None, Ymm(src.id), 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
             elif type(dst) is Xmm:
-                self.emit_bytes(encode_vex(dst, None, src, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+                self._emit_bytes(encode_vex(dst, None, src, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
             else:
                 assert False
             return
@@ -3122,10 +3122,10 @@ class Emitter:
         l = VexL.L128
         if type(dst) is Ymm:
             l = VexL.L256
-        instruction_start = self.section_offset()
-        self.emit_bytes(encode_vex_rm(dst.id, src, l, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+        instruction_start = self._section_offset()
+        self._emit_bytes(encode_vex_rm(dst.id, src, l, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
         if type(src.addr) is Rel:
-            self.add_label_ref(src.addr.label, instruction_start + 5, RipDelta(len(self.text)))
+            self._add_label_ref(src.addr.label, instruction_start + 5, RipDelta(len(self.text)))
 
 def init_cpu_features():
     global cpu_features
