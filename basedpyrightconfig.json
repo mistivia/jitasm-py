@@ -1,6 +1,0 @@
-{
-  "extends": "./pyrightconfig.json",
-  "reportImplicitRelativeImport": "none",
-  "reportUnusedParameter": "none",
-  "reportAny": "none"
-}

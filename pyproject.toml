@@ -16,9 +16,6 @@ name = "jitasm.utils"
 sources = ["src/jitasm/utils.c"]
 extra-compile-args = ["-O3"]
 
-[tool.ruff.lint]
-ignore = ["I001", "PYI041"]
-
 [project.urls]
 Homepage = "https://github.com/mistivia/jitasm-py"
 Repository = "https://github.com/mistivia/jitasm-py"

@@ -1,5 +1,0 @@
-{
-  "extraPaths": ["src"],
-  "reportMissingModuleSource": "none",
-  "reportUnusedExpression": "none"
-}

@@ -1311,8 +1311,12 @@ class Emitter:
         require_avx()
         self.emit_mov_scalar_avx(op1, op2, QWORD, VexPP.PF2, 'movsd')
 
-    def emit_scalar_arith(self, op1: Xmm, op2: Xmm, opcode: int, prefix: bytes, name: str):
-        # TODO: delete type annotation and add type assertion
+    def emit_scalar_arith(self, op1, op2, opcode, prefix, name):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
+        assert type(opcode) is int
+        assert type(prefix) is bytes
+        assert type(name) is str
         if op1.id < 0 or op1.id > 15 or op2.id < 0 or op2.id > 15:
             raise EmitterError('%s: invalid xmm register' % name)
         rex = 0x40 | ((op1.id >> 3) << 2) | (op2.id >> 3)
@@ -1371,8 +1375,12 @@ class Emitter:
         self.require_text_section('divsd')
         self.emit_scalar_arith(op1, op2, 0x5E, b'\xf2', 'divsd')
 
-    def emit_scalar_arith_avx(self, op1: Xmm, op2: Xmm, opcode: int, pp: VexPP, name: str):
-        # TODO: delete type annotation and add type assertion
+    def emit_scalar_arith_avx(self, op1, op2, opcode, pp, name):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
+        assert type(opcode) is int
+        assert type(pp) is VexPP
+        assert type(name) is str
         self.require_text_section(name)
         self.emit_bytes(encode_vex(op1, op1, op2, opcode, VexMap.MAP_0F, pp, VexW.W0))
 
@@ -1424,36 +1432,41 @@ class Emitter:
         require_avx()
         self.emit_scalar_arith_avx(op1, op2, 0x5E, VexPP.PF2, 'divsd')
 
-    def movss(self, op1: Operand, op2: Operand):
-        # TODO: delete type annotation and add type assertion
+    def movss(self, op1, op2):
+        assert type(op1) in (Xmm, Mem)
+        assert type(op2) in (Xmm, Mem)
         if cpu_features.avx:
             self.movss_avx(op1, op2)
         else:
             self.movss_sse(op1, op2)
 
-    def addss(self, op1: Xmm, op2: Xmm):
-        # TODO: delete type annotation and add type assertion
+    def addss(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         if cpu_features.avx:
             self.addss_avx(op1, op2)
         else:
             self.addss_sse(op1, op2)
 
-    def subss(self, op1: Xmm, op2: Xmm):
-        # TODO: delete type annotation and add type assertion
+    def subss(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         if cpu_features.avx:
             self.subss_avx(op1, op2)
         else:
             self.subss_sse(op1, op2)
 
-    def mulss(self, op1: Xmm, op2: Xmm):
-        # TODO: delete type annotation and add type assertion
+    def mulss(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         if cpu_features.avx:
             self.mulss_avx(op1, op2)
         else:
             self.mulss_sse(op1, op2)
 
-    def divss(self, op1: Xmm, op2: Xmm):
-        # TODO: delete type annotation and add type assertion
+    def divss(self, op1, op2):
+        assert type(op1) is Xmm
+        assert type(op2) is Xmm
         if cpu_features.avx:
             self.divss_avx(op1, op2)
         else:
