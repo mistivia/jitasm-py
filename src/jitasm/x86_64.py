@@ -108,21 +108,23 @@ COND_CODE_IDS = {
 def xmm_cond_code(cond):
     assert type(cond) is CondCode
     if cond is CondCode.GT:
-        return CondCode.GTU
+        result = CondCode.GTU
     elif cond is CondCode.GE:
-        return CondCode.GEU
+        result = CondCode.GEU
     elif cond is CondCode.LT:
-        return CondCode.LTU
+        result = CondCode.LTU
     elif cond is CondCode.LE:
-        return CondCode.LEU
+        result = CondCode.LEU
     elif cond in (CondCode.EQ, CondCode.NE, CondCode.P, CondCode.NP):
-        return cond
+        result = cond
     elif cond in (CondCode.GTU, CondCode.GEU, CondCode.LTU, CondCode.LEU):
         raise EmitterError('unsigned condition code cannot be used with xmm operands')
     elif cond in (CondCode.O, CondCode.NO, CondCode.S, CondCode.NS):
         raise EmitterError('overflow and sign conditions cannot be used with xmm operands')
     else:
         assert False
+    assert type(result) is CondCode
+    return result
 
 class RegName(Enum):
     RAX = 'rax'
@@ -158,7 +160,9 @@ class Reg:
 
     def __rmul__(self, scale):
         assert type(scale) is int
-        return self * scale
+        result = self * scale
+        assert type(result) is Sib
+        return result
 
     def __add__(self, other):
         assert type(other) in (Reg, Sib, int, str)
@@ -965,7 +969,10 @@ class Emitter:
     def section_offset(self):
         if self.section == Section.TEXT:
             return len(self.text)
-        return len(self.data)
+        elif self.section == Section.DATA:
+            return len(self.data)
+        else:
+            assert False
 
     def emit_mem_op(self, reg, mem, opcode, rex_w, legacy_prefix = b''):
         assert type(reg) is Reg
@@ -1934,7 +1941,7 @@ class Emitter:
             if op2 != RDX:
                 self.mov(op2, RDX)
 
-    def idiv(self, op1, op2): # returns None
+    def idiv(self, op1, op2):
         assert type(op1) is Reg
         assert type(op2) is Reg
         self.require_text_section('idiv')
@@ -3105,8 +3112,10 @@ class Emitter:
             if type(dst) is Ymm:
                 # The source field only encodes the register number; the opcode fixes its width to XMM.
                 self.emit_bytes(encode_vex(dst, None, Ymm(src.id), 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
-            else:
+            elif type(dst) is Xmm:
                 self.emit_bytes(encode_vex(dst, None, src, 0x18, VexMap.MAP_0F38, VexPP.P66, VexW.W0))
+            else:
+                assert False
             return
         if src.size != DWORD:
             raise EmitterError('vbroadcastss: source must be dword memory')
